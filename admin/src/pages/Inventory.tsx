@@ -1,16 +1,21 @@
 import { useState, useEffect } from 'react';
 import { Package, TrendingDown, TrendingUp, Edit3, Save, X, Loader, Search } from 'lucide-react';
 import { fetchAPI } from '../utils/api';
+import { useSearch } from '../context/SearchContext';
+
 
 interface Props { darkMode: boolean; }
 
 export default function Inventory({ darkMode }: Props) {
+  const { searchQuery } = useSearch();
   const [inventory, setInventory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [editId, setEditId] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<any>({});
-  const [search, setSearch] = useState('');
   const [impactMetrics, setImpactMetrics] = useState<any[]>([]);
+  const [distributeModal, setDistributeModal] = useState<any | null>(null);
+  const [distAmount, setDistAmount] = useState('');
+
 
   const catColors: any = { Food: '#f59e0b', Clothes: '#8b5cf6', Books: '#3b82f6', Monetary: '#10b981', Environment: '#22c55e' };
   const catIcons: any = { Food: '🍲', Clothes: '👕', Books: '📚', Monetary: '💰', Environment: '🌱' };
@@ -39,13 +44,14 @@ export default function Inventory({ darkMode }: Props) {
             id: item.id,
             category: item.category,
             totalReceived: item.quantity, 
-            distributed: impact ? impact.value : 0, 
-            unit: 'units',
+            distributed: item.distributed || 0, 
+            unit: item.category === 'Food' ? 'kg' : item.category === 'Monetary' ? 'INR' : 'units',
             color: catColors[item.category] || '#9ca3af',
             icon: catIcons[item.category] || '📦',
-            lastUpdated: new Date(item.last_updated).toLocaleDateString()
+            lastUpdated: new Date(item.last_updated).toLocaleDateString('en-IN')
           };
         });
+
         setInventory(data);
       } catch (err) {
         console.error("Failed to fetch inventory data", err);
@@ -65,7 +71,12 @@ export default function Inventory({ darkMode }: Props) {
   const inputBg = darkMode ? 'bg-gray-700 border-gray-600 text-gray-200 placeholder-gray-500' : 'bg-white border-gray-200 text-gray-700 placeholder-gray-400';
   const editInputBg = darkMode ? 'bg-gray-600 border-gray-500 text-white' : 'bg-gray-50 border-gray-300 text-gray-800';
 
-  const filtered = inventory.filter(i => !search || i.category.toLowerCase().includes(search.toLowerCase()));
+  const combinedSearch = (searchQuery + ' ' + (editValues.search || '')).trim().toLowerCase();
+  const filtered = inventory.filter(i => 
+    !combinedSearch || 
+    i.category.toLowerCase().includes(combinedSearch)
+  );
+
 
   const startEdit = (item: any) => {
     setEditId(item.category);
@@ -75,22 +86,61 @@ export default function Inventory({ darkMode }: Props) {
   const saveEdit = async (category: string) => {
     try {
       if (editValues.id) {
+        if (editValues.distributed > editValues.totalReceived) {
+          alert("Distributed quantity cannot exceed total received!");
+          return;
+        }
         await fetchAPI(`/api/inventory/items/${editValues.id}/`, {
           method: 'PATCH',
-          body: JSON.stringify({ quantity: editValues.totalReceived }) // Update DB quantity
+          body: JSON.stringify({ 
+            quantity: editValues.totalReceived,
+            distributed: editValues.distributed
+          })
         });
       }
       setInventory(prev => prev.map(i => i.category === category ? {
         ...i,
         totalReceived: editValues.totalReceived ?? i.totalReceived,
         distributed: editValues.distributed ?? i.distributed,
-        lastUpdated: new Date().toISOString().split('T')[0],
+        lastUpdated: new Date().toLocaleDateString('en-IN'),
       } : i));
+
     } catch (err) {
       console.error("Failed to update inventory", err);
     }
     setEditId(null);
   };
+
+  const handleDistribute = async () => {
+    if (!distributeModal || !distAmount || isNaN(+distAmount)) return;
+    const amount = +distAmount;
+    const item = inventory.find(i => i.id === distributeModal.id);
+    if (!item) return;
+
+    if (item.distributed + amount > item.totalReceived) {
+      alert("Cannot distribute more than available stock!");
+      return;
+    }
+
+    try {
+      await fetchAPI(`/api/inventory/items/${item.id}/`, {
+        method: 'PATCH',
+        body: JSON.stringify({ 
+          distributed: item.distributed + amount
+        })
+      });
+      setInventory(prev => prev.map(i => i.id === item.id ? {
+        ...i,
+        distributed: i.distributed + amount,
+        lastUpdated: new Date().toLocaleDateString('en-IN'),
+      } : i));
+      setDistributeModal(null);
+      setDistAmount('');
+    } catch (err) {
+      console.error("Failed to distribute items", err);
+    }
+  };
+
 
   const totalItems = inventory.reduce((s, i) => s + i.totalReceived, 0);
   const totalDistributed = inventory.reduce((s, i) => s + i.distributed, 0);
@@ -125,9 +175,10 @@ export default function Inventory({ darkMode }: Props) {
       {/* Search Bar */}
       <div className={`flex items-center gap-2 px-4 py-3 rounded-xl border shadow-sm ${card} ${inputBg}`}>
         <Search size={15} className={textSub} />
-        <input className="bg-transparent outline-none text-sm flex-1" placeholder="Search inventory by category..." value={search} onChange={e => setSearch(e.target.value)} />
-        {search && <button onClick={() => setSearch('')}><X size={13} className={textSub} /></button>}
+        <input className="bg-transparent outline-none text-sm flex-1" placeholder="Filter inventory on this page..." value={editValues.search || ''} onChange={e => setEditValues((v: any) => ({ ...v, search: e.target.value }))} />
+        {editValues.search && <button onClick={() => setEditValues((v: any) => ({ ...v, search: '' }))}><X size={13} className={textSub} /></button>}
       </div>
+
 
       {/* Category Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
@@ -233,9 +284,16 @@ export default function Inventory({ darkMode }: Props) {
                           <button onClick={() => setEditId(null)} className={`p-1.5 rounded-lg transition-colors ${darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}><X size={13} /></button>
                         </div>
                       ) : (
-                        <button onClick={() => startEdit(item)} className={`p-1.5 rounded-lg transition-colors ${darkMode ? 'hover:bg-amber-900/30 text-amber-400' : 'hover:bg-amber-50 text-amber-600'}`}><Edit3 size={14} /></button>
+                        <div className="flex gap-2">
+                          <button onClick={() => { setDistributeModal(item); setDistAmount(''); }} 
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-green-500 text-white hover:bg-green-600 transition-colors shadow-sm`}>
+                            Distribute
+                          </button>
+                          <button onClick={() => startEdit(item)} className={`p-2 rounded-lg transition-colors ${darkMode ? 'hover:bg-amber-900/30 text-amber-400' : 'hover:bg-amber-50 text-amber-600'}`}><Edit3 size={14} /></button>
+                        </div>
                       )}
                     </td>
+
                   </tr>
                 );
               })}
@@ -261,6 +319,48 @@ export default function Inventory({ darkMode }: Props) {
           ))}
         </div>
       </div>
+      {/* Distribution Modal */}
+      {distributeModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setDistributeModal(null)}>
+          <div className={`rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden ${darkMode ? 'bg-gray-800' : 'bg-white'}`} onClick={e => e.stopPropagation()}>
+            <div className={`px-5 py-4 flex items-center justify-between border-b ${darkMode ? 'border-gray-700' : 'border-gray-100'}`}>
+              <h3 className={`font-bold text-sm ${textMain}`}>Distribute {distributeModal.category}</h3>
+              <button onClick={() => setDistributeModal(null)} className={`p-1.5 rounded-lg ${darkMode ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}><X size={14} /></button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div className={`p-4 rounded-xl ${darkMode ? 'bg-gray-700' : 'bg-gray-50'} flex justify-between items-center`}>
+                <div>
+                  <p className={`text-xs ${textSub}`}>Available to Distribute</p>
+                  <p className={`text-lg font-bold ${textMain}`}>{distributeModal.totalReceived - distributeModal.distributed} {distributeModal.unit}</p>
+                </div>
+                <span className="text-3xl">{distributeModal.icon}</span>
+              </div>
+              <div>
+                <label className={`text-xs font-semibold ${textSub} mb-1 block`}>Amount to Distribute</label>
+                <div className={`flex items-center gap-2 px-3 py-2 rounded-xl border ${inputBg}`}>
+                  <input 
+                    type="number" 
+                    autoFocus
+                    className="bg-transparent outline-none flex-1 text-sm" 
+                    placeholder={`Enter amount in ${distributeModal.unit}...`}
+                    value={distAmount}
+                    onChange={e => setDistAmount(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleDistribute()}
+                  />
+                </div>
+              </div>
+            </div>
+            <div className={`px-5 py-4 border-t ${darkMode ? 'border-gray-700' : 'border-gray-100'} flex gap-3`}>
+              <button onClick={() => setDistributeModal(null)} className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-colors ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>Cancel</button>
+              <button onClick={handleDistribute} disabled={!distAmount || isNaN(+distAmount) || +distAmount <= 0}
+                className="flex-1 py-2.5 rounded-xl text-sm font-medium bg-green-500 text-white hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-green-500/20">
+                Confirm Distribution
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
+
   );
 }

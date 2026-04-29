@@ -19,8 +19,9 @@ class DonationSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Donation
-        fields = ['id', 'donor', 'category', 'quantity_description', 'image', 'status', 'timestamp', 'pickup_details']
+        fields = ['id', 'donor', 'category', 'quantity_description', 'quantity', 'image', 'status', 'timestamp', 'pickup_details']
         read_only_fields = ['timestamp']
+
 
     def create(self, validated_data):
         pickup_data = validated_data.pop('pickup_details', None)
@@ -35,9 +36,11 @@ class DonationSerializer(serializers.ModelSerializer):
         # Update donation fields
         instance.category = validated_data.get('category', instance.category)
         instance.quantity_description = validated_data.get('quantity_description', instance.quantity_description)
+        instance.quantity = validated_data.get('quantity', instance.quantity)
         instance.image = validated_data.get('image', instance.image)
         instance.status = validated_data.get('status', instance.status)
         instance.save()
+
 
         # Update or create pickup details
         if pickup_data:

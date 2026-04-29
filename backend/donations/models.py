@@ -19,6 +19,7 @@ class Donation(models.Model):
     donor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='donations')
     category = models.CharField(max_length=20, choices=CATEGORY_CHOICES)
     quantity_description = models.TextField()
+    quantity = models.PositiveIntegerField(default=1)
     image = models.ImageField(upload_to='donations/', blank=True, null=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Pending')
     timestamp = models.DateTimeField(auto_now_add=True)
@@ -30,8 +31,20 @@ class Donation(models.Model):
             models.Index(fields=['donor']),
         ]
 
+    def save(self, *args, **kwargs):
+        # If status is changing to Completed, update inventory
+        if self.pk:
+            old_status = Donation.objects.get(pk=self.pk).status
+            if old_status != 'Completed' and self.status == 'Completed':
+                from inventory.models import InventoryItem
+                item, created = InventoryItem.objects.get_or_create(category=self.category)
+                item.quantity += self.quantity
+                item.save()
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return f"{self.category} Donation by {self.donor.username} - {self.status}"
+
 
 
 class PickupDetails(models.Model):

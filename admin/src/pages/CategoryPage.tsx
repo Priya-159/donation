@@ -13,7 +13,8 @@ const categoryConfig: Record<DonationCategory, { icon: string; color: string; gr
   Food: { icon: '🍱', color: 'text-amber-500', gradient: 'from-amber-400 to-orange-500', unit: 'kg', barColor: '#f59e0b' },
   Clothes: { icon: '👗', color: 'text-purple-500', gradient: 'from-purple-400 to-violet-500', unit: 'items', barColor: '#8b5cf6' },
   Books: { icon: '📚', color: 'text-blue-500', gradient: 'from-blue-400 to-indigo-500', unit: 'books', barColor: '#3b82f6' },
-  Monetary: { icon: '💰', color: 'text-emerald-500', gradient: 'from-emerald-400 to-green-500', unit: 'USD', barColor: '#10b981' },
+  Monetary: { icon: '💰', color: 'text-emerald-500', gradient: 'from-emerald-400 to-green-500', unit: 'INR', barColor: '#10b981' },
+
   Environment: { icon: '🌱', color: 'text-green-500', gradient: 'from-green-400 to-teal-500', unit: 'saplings', barColor: '#22c55e' },
 };
 
@@ -55,10 +56,11 @@ export default function CategoryPage({ darkMode, category }: Props) {
   // Find matching inventory
   const rawInv = inventory.find((i: any) => i.category === category);
   const inv = rawInv ? {
-    totalReceived: rawInv.quantity + 10, // Base quantity + mock dist
-    distributed: 10,
+    totalReceived: rawInv.quantity,
+    distributed: rawInv.distributed || 0,
     unit: cfg.unit
   } : { totalReceived: 0, distributed: 0, unit: cfg.unit };
+
 
   const remaining = inv.totalReceived - inv.distributed;
   const distPct = inv.totalReceived > 0 ? Math.round((inv.distributed / inv.totalReceived) * 100) : 0;
@@ -71,9 +73,11 @@ export default function CategoryPage({ darkMode, category }: Props) {
     { month: 'Apr', amount: 0 } // Assuming April current month
   ];
   
-  catDonations.forEach(() => {
-    monthlyTrends[3].amount++;
+  catDonations.forEach((d: any) => {
+    const val = category === 'Monetary' ? (d.quantity || 1) : 1;
+    monthlyTrends[3].amount += val;
   });
+
 
   const statusCount = catDonations.reduce((acc: any, d: any) => {
     acc[d.status] = (acc[d.status] || 0) + 1;
@@ -109,7 +113,8 @@ export default function CategoryPage({ darkMode, category }: Props) {
       {/* Stat Cards */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
         {[
-          { label: 'Total Received', value: inv.totalReceived > 0 ? `${inv.totalReceived.toLocaleString()} ${inv.unit}` : '0', icon: Package, sub: 'Live DB' },
+          { label: 'Total Received', value: inv.totalReceived > 0 ? `${inv.totalReceived.toLocaleString('en-IN')} ${inv.unit}` : '0', icon: Package, sub: 'Live DB' },
+
           { label: 'Distributed', value: `${inv.distributed.toLocaleString()}`, icon: ArrowDownCircle, sub: `${distPct}% of total` },
           { label: 'Remaining Stock', value: remaining.toLocaleString(), icon: Archive, sub: `${100 - distPct}% available` },
           { label: 'Active Donations', value: catDonations.length.toString(), icon: TrendingUp, sub: `${catDonations.filter((d: any) => d.status === 'Pending').length} pending` },

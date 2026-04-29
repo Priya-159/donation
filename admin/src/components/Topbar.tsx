@@ -1,6 +1,7 @@
 import { Bell, Search, Moon, Sun, Menu, Loader } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { fetchAPI } from '../utils/api';
+import { useSearch } from '../context/SearchContext';
 
 interface TopbarProps {
   darkMode: boolean;
@@ -11,12 +12,10 @@ interface TopbarProps {
 }
 
 export default function Topbar({ darkMode, onToggleDark, onMobileMenuOpen, pageTitle, onLogout }: TopbarProps) {
+  const { searchQuery, setSearchQuery } = useSearch();
   const [showNotif, setShowNotif] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
-
-  // Search States
-  const [search, setSearch] = useState('');
   const [searchResults, setSearchResults] = useState<{ donations: any[], users: any[] }>({ donations: [], users: [] });
   const [showSearch, setShowSearch] = useState(false);
   const [allData, setAllData] = useState<{ donations: any[], users: any[] }>({ donations: [], users: [] });
@@ -54,11 +53,12 @@ export default function Topbar({ darkMode, onToggleDark, onMobileMenuOpen, pageT
 
   // Handle Global Search
   useEffect(() => {
-    if (!search.trim()) {
+    if (!searchQuery.trim()) {
       setSearchResults({ donations: [], users: [] });
       return;
     }
-    const q = search.toLowerCase();
+    const q = searchQuery.toLowerCase();
+
     const dResults = allData.donations.filter((d: any) => 
       d.donor?.toLowerCase().includes(q) || 
       d.id.toString().includes(q) || 
@@ -71,7 +71,8 @@ export default function Topbar({ darkMode, onToggleDark, onMobileMenuOpen, pageT
     ).slice(0, 4);
 
     setSearchResults({ donations: dResults, users: uResults });
-  }, [search, allData]);
+  }, [searchQuery, allData]);
+
 
   const unread = notifications.filter(n => !n.read).length;
 
@@ -129,19 +130,19 @@ export default function Topbar({ darkMode, onToggleDark, onMobileMenuOpen, pageT
             <input 
               className="bg-transparent outline-none w-full" 
               placeholder="Search anything..." 
-              value={search}
-              onChange={e => { setSearch(e.target.value); setShowSearch(true); }}
+              value={searchQuery}
+              onChange={e => { setSearchQuery(e.target.value); setShowSearch(true); }}
               onFocus={() => setShowSearch(true)}
             />
           </div>
 
-          {showSearch && search && (
+          {showSearch && searchQuery && (
             <>
               <div className="fixed inset-0 z-40" onClick={() => setShowSearch(false)} />
               <div className={`absolute left-0 top-12 w-80 rounded-2xl border shadow-2xl z-50 overflow-hidden ${notifBg} animate-fade-in`}>
                 <div className="max-h-[400px] overflow-y-auto">
                   {searchResults.donations.length === 0 && searchResults.users.length === 0 ? (
-                    <div className={`px-4 py-8 text-center text-sm ${textSub}`}>No results found for "{search}"</div>
+                    <div className={`px-4 py-8 text-center text-sm ${textSub}`}>No results found for "{searchQuery}"</div>
                   ) : (
                     <div className="py-2">
                       {searchResults.donations.length > 0 && (
@@ -176,6 +177,7 @@ export default function Topbar({ darkMode, onToggleDark, onMobileMenuOpen, pageT
             </>
           )}
         </div>
+
 
         {/* Dark Mode Toggle */}
         <button

@@ -1,15 +1,18 @@
 import { useState, useEffect } from 'react';
 import { UserCheck, UserX, Clock, Search, Filter, Loader, Mail, Phone, MapPin, Briefcase, Users } from 'lucide-react';
 import { fetchAPI } from '../utils/api';
+import { useSearch } from '../context/SearchContext';
+
 
 interface Props { darkMode: boolean; }
 
 export default function Volunteers({ darkMode }: Props) {
+  const { searchQuery } = useSearch();
   const [applications, setApplications] = useState<any[]>([]);
   const [activeVolunteers, setActiveVolunteers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'applications' | 'active'>('applications');
-  const [search, setSearch] = useState('');
+  const [localSearch, setLocalSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'All' | 'Pending' | 'Approved' | 'Rejected'>('All');
 
   const fetchData = async () => {
@@ -34,23 +37,36 @@ export default function Volunteers({ darkMode }: Props) {
     fetchData();
   }, []);
 
-  const updateStatus = async (id: number, status: string) => {
+  const updateStatus = async (app: any, status: string) => {
     try {
-      await fetchAPI(`/api/users/volunteer/admin/${id}/`, {
+      await fetchAPI(`/api/users/volunteer/admin/${app.id}/`, {
         method: 'PATCH',
         body: JSON.stringify({ status })
       });
       
-      // If approved, we might want to refresh the active volunteers list too
+      // Create notification for the user
+      await fetchAPI('/api/chat/notifications/', {
+        method: 'POST',
+        body: JSON.stringify({
+          user: app.user_id, // Assuming backend provides user_id in application object
+          title: status === 'Approved' ? "Volunteer Application Approved! 🎉" : "Volunteer Application Status",
+          message: status === 'Approved' 
+            ? "Congratulations! Your application to become a volunteer has been approved. Welcome to the team!" 
+            : "Thank you for your interest. Unfortunately, your volunteer application has been rejected at this time.",
+          type: 'alert'
+        })
+      }).catch(err => console.warn("Failed to send notification:", err));
+
       if (status === 'Approved') {
         fetchData();
       } else {
-        setApplications(prev => prev.map(v => v.id === id ? { ...v, status } : v));
+        setApplications(prev => prev.map(v => v.id === app.id ? { ...v, status } : v));
       }
     } catch (err) {
       console.error("Failed to update status", err);
     }
   };
+
 
   const card = darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100';
   const textMain = darkMode ? 'text-white' : 'text-gray-800';
@@ -60,16 +76,19 @@ export default function Volunteers({ darkMode }: Props) {
   const tabActive = 'border-green-500 text-green-500';
   const tabInactive = 'border-transparent text-gray-500 hover:text-gray-700';
 
+  const combinedSearch = (searchQuery + ' ' + localSearch).trim().toLowerCase();
   const filteredApps = applications.filter(v => {
     const matchesFilter = statusFilter === 'All' || v.status === statusFilter;
-    const matchesSearch = !search || v.name.toLowerCase().includes(search.toLowerCase()) || v.email.toLowerCase().includes(search.toLowerCase());
+    const matchesSearch = !combinedSearch || v.name.toLowerCase().includes(combinedSearch) || v.email.toLowerCase().includes(combinedSearch);
     return matchesFilter && matchesSearch;
   });
 
+
   const filteredActive = activeVolunteers.filter(v => {
-    const matchesSearch = !search || v.username.toLowerCase().includes(search.toLowerCase()) || v.email.toLowerCase().includes(search.toLowerCase());
+    const matchesSearch = !combinedSearch || v.username.toLowerCase().includes(combinedSearch) || v.email.toLowerCase().includes(combinedSearch);
     return matchesSearch;
   });
+
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -115,11 +134,13 @@ export default function Volunteers({ darkMode }: Props) {
           <Search size={16} className={textSub} />
           <input 
             className="bg-transparent outline-none w-full text-sm" 
-            placeholder={activeTab === 'applications' ? "Search applications..." : "Search active volunteers..."}
-            value={search}
-            onChange={e => setSearch(e.target.value)}
+            placeholder={activeTab === 'applications' ? "Filter applications..." : "Filter active volunteers..."}
+            value={localSearch}
+            onChange={e => setLocalSearch(e.target.value)}
           />
+          {localSearch && <button onClick={() => setLocalSearch('')}><X size={14} className={textSub} /></button>}
         </div>
+
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {activeTab === 'applications' ? (
@@ -143,10 +164,11 @@ export default function Volunteers({ darkMode }: Props) {
                     <div className="flex items-center gap-2">
                       {v.status === 'Pending' && (
                         <>
-                          <button onClick={() => updateStatus(v.id, 'Approved')} className="p-2 rounded-lg bg-green-500 text-white hover:bg-green-600 shadow-sm"><UserCheck size={16} /></button>
-                          <button onClick={() => updateStatus(v.id, 'Rejected')} className="p-2 rounded-lg bg-red-500 text-white hover:bg-red-600 shadow-sm"><UserX size={16} /></button>
+                          <button onClick={() => updateStatus(v, 'Approved')} className="p-2 rounded-lg bg-green-500 text-white hover:bg-green-600 shadow-sm"><UserCheck size={16} /></button>
+                          <button onClick={() => updateStatus(v, 'Rejected')} className="p-2 rounded-lg bg-red-500 text-white hover:bg-red-600 shadow-sm"><UserX size={16} /></button>
                         </>
                       )}
+
                     </div>
                   </div>
                   <div className="space-y-2 text-sm">

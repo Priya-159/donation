@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Truck, Clock, CheckCircle2, Calendar, User, MapPin, X, Loader, Search } from 'lucide-react';
 import { fetchAPI } from '../utils/api';
+import { useSearch } from '../context/SearchContext';
+
 
 interface Props { darkMode: boolean; }
 
@@ -8,13 +10,15 @@ const teams = ['Team Alpha', 'Team Beta', 'Team Gamma', 'Team Delta'];
 const timeSlots = ['9:00 AM', '10:00 AM', '11:00 AM', '11:30 AM', '1:00 PM', '2:00 PM', '3:00 PM', '4:00 PM'];
 
 export default function PickupManagement({ darkMode }: Props) {
+  const { searchQuery } = useSearch();
   const [localDonations, setLocalDonations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [assignModal, setAssignModal] = useState<any | null>(null);
   const [selectedTeam, setSelectedTeam] = useState('');
   const [selectedTime, setSelectedTime] = useState('');
   const [activeTab, setActiveTab] = useState<'upcoming' | 'completed'>('upcoming');
-  const [search, setSearch] = useState('');
+  const [localSearch, setLocalSearch] = useState('');
+
 
   const card = darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100';
   const textMain = darkMode ? 'text-white' : 'text-gray-800';
@@ -34,7 +38,8 @@ export default function PickupManagement({ darkMode }: Props) {
           status: d.status,
           address: d.pickup_details?.full_address || 'No address',
           city: d.pickup_details?.city || 'Unknown',
-          date: new Date(d.timestamp).toLocaleDateString(),
+          date: new Date(d.timestamp).toLocaleDateString('en-IN'),
+
           pickupTime: d.pickup_details?.scheduled_time || '',
           assignedTo: d.pickup_details?.volunteer || null,
           category: d.category,
@@ -52,10 +57,12 @@ export default function PickupManagement({ darkMode }: Props) {
 
   const upcoming = localDonations.filter(d => d.status === 'Pending' || d.status === 'Scheduled');
   const completed = localDonations.filter(d => d.status === 'Completed');
+  const combinedSearch = (searchQuery + ' ' + localSearch).trim().toLowerCase();
   const filtered = (activeTab === 'upcoming' ? upcoming : completed).filter(p => {
-    const q = search.toLowerCase();
+    const q = combinedSearch;
     return !q || p.donorName.toLowerCase().includes(q) || p.address.toLowerCase().includes(q) || p.id.toString().includes(q);
   });
+
   const displayed = filtered;
 
   const statusBadge: Record<string, string> = {
@@ -156,9 +163,10 @@ export default function PickupManagement({ darkMode }: Props) {
           {/* Search Bar */}
           <div className={`mt-4 flex items-center gap-2 px-3 py-2 rounded-xl border text-sm ${inputBg}`}>
             <Search size={14} className={textSub} />
-            <input className="bg-transparent outline-none flex-1 text-sm" placeholder="Search by donor name, address, or ID..." value={search} onChange={e => setSearch(e.target.value)} />
-            {search && <button onClick={() => setSearch('')}><X size={12} className={textSub} /></button>}
+            <input className="bg-transparent outline-none flex-1 text-sm" placeholder="Filter pickups on this page..." value={localSearch} onChange={e => setLocalSearch(e.target.value)} />
+            {localSearch && <button onClick={() => setLocalSearch('')}><X size={12} className={textSub} /></button>}
           </div>
+
         </div>
 
         {/* Pickup Cards */}

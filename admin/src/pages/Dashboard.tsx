@@ -5,16 +5,21 @@ import {
 } from 'recharts';
 import { Heart, DollarSign, Clock, CheckCircle2, TrendingUp, ArrowUpRight, Loader } from 'lucide-react';
 import { fetchAPI } from '../utils/api';
+import { useSearch } from '../context/SearchContext';
+
+
 
 interface Props { darkMode: boolean; }
 
 export default function Dashboard({ darkMode }: Props) {
+  const { searchQuery } = useSearch();
   // Database States
   const [donations, setDonations] = useState<any[]>([]);
   const [inventory, setInventory] = useState<any[]>([]);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
+  const [localSearch, setLocalSearch] = useState('');
+
 
   // Styling Variables
   const card = darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100';
@@ -58,8 +63,8 @@ export default function Dashboard({ darkMode }: Props) {
   const completedDonations = donations.filter((d: any) => d.status === 'Completed').length;
 
   const summaryCards = [
-    { label: 'Total Donations', value: totalDonations, icon: Heart, bg: 'from-green-400 to-emerald-500', sub: 'Updated live', trend: 'up' },
-    { label: 'Monetary Contributions', value: `$${totalMonetary.toLocaleString()}`, icon: DollarSign, bg: 'from-blue-400 to-indigo-500', sub: 'Estimated', trend: 'up' },
+    { label: 'Total Donations', value: totalDonations.toLocaleString('en-IN'), icon: Heart, bg: 'from-green-400 to-emerald-500', sub: 'Updated live', trend: 'up' },
+    { label: 'Monetary Contributions', value: `₹${totalMonetary.toLocaleString('en-IN')}`, icon: DollarSign, bg: 'from-blue-400 to-indigo-500', sub: 'Estimated', trend: 'up' },
     { label: 'Pending Pickups', value: pendingPickups, icon: Clock, bg: 'from-amber-400 to-orange-500', sub: 'Needs attention', trend: 'neutral' },
     { label: 'Completed Donations', value: completedDonations, icon: CheckCircle2, bg: 'from-violet-400 to-purple-500', sub: 'Successfully delivered', trend: 'up' },
   ];
@@ -90,8 +95,8 @@ export default function Dashboard({ darkMode }: Props) {
   // Inventory Snapshot derived from real Inventory items
   const inventoryData = inventory.map((inv: any) => ({
     category: inv.category,
-    totalReceived: inv.quantity + 20, // Add slight mock padding for distribution visual
-    distributed: 20, 
+    totalReceived: inv.quantity, 
+    distributed: inv.distributed || 0, 
     color: catColors[inv.category] || '#9ca3af',
     icon: inv.category === 'Food' ? '🍲' : inv.category === 'Clothes' ? '👕' : '📦'
   }));
@@ -161,27 +166,27 @@ export default function Dashboard({ darkMode }: Props) {
         <div className={`xl:col-span-2 rounded-2xl border p-5 shadow-sm ${card}`}>
           <div className="flex items-center justify-between mb-5">
             <div>
-              <h2 className={`font-bold text-base ${textMain}`}>Monthly Donation Trends</h2>
-              <p className={`text-xs ${textSub}`}>Real-time Database Extraction</p>
+              <h2 className={`font-bold text-base ${textMain}`}>Inventory: Received vs Distributed</h2>
+              <p className={`text-xs ${textSub}`}>Stock Management Comparison</p>
             </div>
             <div className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-green-600 ${darkMode ? 'bg-green-900/30' : 'bg-green-50'}`}>
               <TrendingUp size={12} />
-              Live API
+              Real-time DB
             </div>
           </div>
+
           <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={monthlyTrends} barSize={10} barGap={3}>
+            <BarChart data={inventoryData} barSize={20} barGap={8}>
               <CartesianGrid strokeDasharray="3 3" stroke={gridLine} vertical={false} />
-              <XAxis dataKey="month" tick={{ fill: axisColor, fontSize: 12 }} axisLine={false} tickLine={false} />
+              <XAxis dataKey="category" tick={{ fill: axisColor, fontSize: 12 }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fill: axisColor, fontSize: 12 }} axisLine={false} tickLine={false} />
               <Tooltip content={<CustomTooltip />} />
-              <Legend wrapperStyle={{ fontSize: '11px' }} />
-              <Bar dataKey="Food" fill="#f59e0b" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="Clothes" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="Books" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="Environment" fill="#22c55e" radius={[4, 4, 0, 0]} />
+              <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
+              <Bar name="Total Received" dataKey="totalReceived" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+              <Bar name="Distributed" dataKey="distributed" fill="#10b981" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
+
         </div>
 
         {/* Pie Chart */}
@@ -230,7 +235,16 @@ export default function Dashboard({ darkMode }: Props) {
             {recentActivity.length === 0 ? (
               <p className={`text-sm ${textSub}`}>No recent activity in the database.</p>
             ) : recentActivity.map((item: any) => (
-              <div key={item.id} className={`flex items-center gap-4 p-3 rounded-xl transition-colors ${darkMode ? 'hover:bg-gray-700/50' : 'hover:bg-gray-50'}`}>
+              <div 
+                key={item.id} 
+                className={`flex items-center gap-4 p-3 rounded-xl transition-colors cursor-pointer ${darkMode ? 'hover:bg-gray-700/50' : 'hover:bg-gray-50'}`}
+                onClick={() => {
+                  // Redirect logic based on action type
+                  if (item.action.toLowerCase().includes('donation')) window.dispatchEvent(new CustomEvent('navigate', { detail: 'donations' }));
+                  else if (item.action.toLowerCase().includes('message')) window.dispatchEvent(new CustomEvent('navigate', { detail: 'messages' }));
+                  else if (item.action.toLowerCase().includes('volunteer')) window.dispatchEvent(new CustomEvent('navigate', { detail: 'volunteers' }));
+                }}
+              >
                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0 ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
                   {item.icon}
                 </div>
@@ -241,6 +255,7 @@ export default function Dashboard({ darkMode }: Props) {
                 <span className={`text-xs flex-shrink-0 ${textSub}`}>{item.time}</span>
               </div>
             ))}
+
           </div>
         </div>
 
@@ -286,8 +301,9 @@ export default function Dashboard({ darkMode }: Props) {
           <h2 className={`font-bold text-base ${textMain}`}>Recent Donations</h2>
           <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-sm ${darkMode ? 'bg-gray-800 border-gray-700 text-gray-200' : 'bg-gray-50 border-gray-200 text-gray-700'} w-full sm:w-64 transition-all`}>
             <span className="text-gray-400">🔍</span>
-            <input className="bg-transparent outline-none w-full text-xs" placeholder="Search recent donations..." value={search} onChange={e => setSearch(e.target.value)} />
+            <input className="bg-transparent outline-none w-full text-xs" placeholder="Filter recent donations..." value={localSearch} onChange={e => setLocalSearch(e.target.value)} />
           </div>
+
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -304,9 +320,10 @@ export default function Dashboard({ darkMode }: Props) {
                    <td colSpan={6} className={`py-8 text-center ${textSub}`}>No donations stored yet.</td>
                  </tr>
               ) : donations.filter((d: any) => {
-                  const q = search.toLowerCase();
+                  const q = (searchQuery + ' ' + localSearch).trim().toLowerCase();
                   return !q || d.donor.toLowerCase().includes(q) || d.id.toString().includes(q) || d.category.toLowerCase().includes(q);
                 }).slice(0, 5).map((d: any) => (
+
                 <tr key={d.id} className={`transition-colors ${darkMode ? 'divide-gray-700 hover:bg-gray-700/40' : 'hover:bg-gray-50'}`}>
                   <td className={`px-5 py-3.5 font-mono font-medium text-green-600`}>#{d.id}</td>
                   <td className={`px-5 py-3.5 font-medium ${textMain}`}>{d.donor}</td>

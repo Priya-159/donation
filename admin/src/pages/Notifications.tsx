@@ -1,14 +1,18 @@
 import { useState, useEffect } from 'react';
 import { Bell, Loader, CheckCircle, Trash2, Search, Filter } from 'lucide-react';
 import { fetchAPI } from '../utils/api';
+import { useSearch } from '../context/SearchContext';
+
 
 interface Props { darkMode: boolean; }
 
 export default function Notifications({ darkMode }: Props) {
+  const { searchQuery } = useSearch();
   const [notifications, setNotifications] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
-  const [search, setSearch] = useState('');
+  const [localSearch, setLocalSearch] = useState('');
+
 
   const fetchNotifications = async () => {
     try {
@@ -73,11 +77,13 @@ export default function Notifications({ darkMode }: Props) {
   const itemHover = darkMode ? 'hover:bg-gray-700/50' : 'hover:bg-gray-50';
   const unreadBg = darkMode ? 'bg-green-900/10' : 'bg-green-50/50';
 
+  const combinedSearch = (searchQuery + ' ' + localSearch).trim().toLowerCase();
   const filtered = notifications.filter(n => {
     const matchesFilter = filter === 'all' || !n.read;
-    const matchesSearch = !search || n.title.toLowerCase().includes(search.toLowerCase()) || n.message.toLowerCase().includes(search.toLowerCase());
+    const matchesSearch = !combinedSearch || n.title.toLowerCase().includes(combinedSearch) || n.message.toLowerCase().includes(combinedSearch);
     return matchesFilter && matchesSearch;
   });
+
 
   if (loading) {
     return <div className="flex justify-center items-center h-[50vh]"><Loader className="animate-spin text-green-500 w-8 h-8" /></div>;
@@ -106,11 +112,12 @@ export default function Notifications({ darkMode }: Props) {
             <Search size={16} className={textSub} />
             <input 
               className="bg-transparent outline-none w-full text-sm" 
-              placeholder="Search notifications..." 
-              value={search}
-              onChange={e => setSearch(e.target.value)}
+              placeholder="Filter notifications on this page..." 
+              value={localSearch}
+              onChange={e => setLocalSearch(e.target.value)}
             />
           </div>
+
           <div className="flex items-center gap-2">
             <button 
               onClick={() => setFilter('all')}

@@ -3,11 +3,14 @@ import { Search, Filter, Eye, Edit3, CheckCircle, Trash2, ChevronDown, X, Phone,
 import { donations as mockDonations, Donation, DonationStatus, DonationCategory } from '../data/mockData';
 import { fetchAPI } from '../utils/api';
 import { useEffect } from 'react';
+import { useSearch } from '../context/SearchContext';
+
 interface Props { darkMode: boolean; }
 
 const CATEGORIES: DonationCategory[] = ['Food', 'Clothes', 'Books', 'Monetary', 'Environment'];
 const STATUSES: DonationStatus[] = ['Pending', 'Scheduled', 'Completed', 'Cancelled'];
-const CITIES = ['All', 'Brooklyn', 'Queens', 'Manhattan', 'Bronx', 'Staten Island'];
+const CITIES = ['All', 'Mumbai', 'Delhi', 'Bangalore', 'Kolkata', 'Chennai', 'Pune', 'Hyderabad', 'Ahmedabad', 'Jaipur'];
+
 
 const statusColors: Record<DonationStatus, string> = {
   Completed: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
@@ -25,7 +28,9 @@ const catColors: Record<DonationCategory, string> = {
 };
 
 export default function DonationManagement({ darkMode }: Props) {
-  const [search, setSearch] = useState('');
+  const { searchQuery } = useSearch();
+  const [localSearch, setLocalSearch] = useState('');
+
   const [filterCat, setFilterCat] = useState<string>('All');
   const [filterStatus, setFilterStatus] = useState<string>('All');
   const [filterCity, setFilterCity] = useState<string>('All');
@@ -74,8 +79,9 @@ export default function DonationManagement({ darkMode }: Props) {
   const modalBg = darkMode ? 'bg-gray-800' : 'bg-white';
   const selectBg = darkMode ? 'bg-gray-700 border-gray-600 text-gray-200' : 'bg-white border-gray-200 text-gray-700';
 
+  const combinedSearch = (searchQuery + ' ' + localSearch).trim().toLowerCase();
   const filtered = localDonations.filter(d => {
-    const q = search.toLowerCase();
+    const q = combinedSearch;
     const matchSearch = !q || d.donorName.toLowerCase().includes(q) || d.id.toLowerCase().includes(q) || d.address.toLowerCase().includes(q) || d.category.toLowerCase().includes(q);
     const matchCat = filterCat === 'All' || d.category === filterCat;
     const matchStatus = filterStatus === 'All' || d.status === filterStatus;
@@ -83,17 +89,33 @@ export default function DonationManagement({ darkMode }: Props) {
     return matchSearch && matchCat && matchStatus && matchCity;
   });
 
+
   const markComplete = async (id: string) => {
     try {
       await fetchAPI(`/api/donations/${id}/`, {
         method: 'PATCH',
         body: JSON.stringify({ status: 'Completed' })
       });
+      
+      const don = localDonations.find(d => d.id === id);
+      if (don) {
+        await fetchAPI('/api/chat/notifications/', {
+          method: 'POST',
+          body: JSON.stringify({
+            user: don.user_id, // Assuming user_id is in the object
+            title: "Donation Completed! ✅",
+            message: `Your donation #${id} has been marked as completed. Thank you for your contribution!`,
+            type: 'donation'
+          })
+        }).catch(() => {});
+      }
+
       setLocalDonations(prev => prev.map(d => d.id === id ? { ...d, status: 'Completed' as DonationStatus } : d));
     } catch (err) {
       console.error("Failed to mark donation as complete", err);
     }
   };
+
 
   const deleteDon = async (id: string) => {
     if (!window.confirm("Are you sure you want to delete this donation record?")) return;
@@ -112,9 +134,10 @@ export default function DonationManagement({ darkMode }: Props) {
         <div className="flex flex-col sm:flex-row gap-3">
           <div className={`flex items-center gap-2 flex-1 px-3 py-2.5 rounded-xl border ${inputBg}`}>
             <Search size={15} className={textSub} />
-            <input className="bg-transparent outline-none text-sm w-full" placeholder="Search by name, ID, category, address..." value={search} onChange={e => setSearch(e.target.value)} />
-            {search && <button onClick={() => setSearch('')}><X size={13} className={textSub} /></button>}
+            <input className="bg-transparent outline-none text-sm w-full" placeholder="Filter donations on this page..." value={localSearch} onChange={e => setLocalSearch(e.target.value)} />
+            {localSearch && <button onClick={() => setLocalSearch('')}><X size={13} className={textSub} /></button>}
           </div>
+
           <button
             onClick={() => setShowFilters(!showFilters)}
             className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-medium transition-colors
@@ -155,9 +178,10 @@ export default function DonationManagement({ darkMode }: Props) {
       {/* Count */}
       <div className="flex items-center justify-between">
         <p className={`text-sm ${textSub}`}>Showing <span className={`font-semibold ${textMain}`}>{filtered.length}</span> of <span className="font-semibold">{localDonations.length}</span> donations</p>
-        {(filterCat !== 'All' || filterStatus !== 'All' || filterCity !== 'All' || search) && (
-          <button onClick={() => { setSearch(''); setFilterCat('All'); setFilterStatus('All'); setFilterCity('All'); }} className="text-xs text-green-500 font-semibold hover:underline">Clear filters</button>
+        {(filterCat !== 'All' || filterStatus !== 'All' || filterCity !== 'All' || localSearch) && (
+          <button onClick={() => { setLocalSearch(''); setFilterCat('All'); setFilterStatus('All'); setFilterCity('All'); }} className="text-xs text-green-500 font-semibold hover:underline">Clear filters</button>
         )}
+
       </div>
 
       {/* Table */}

@@ -1,16 +1,19 @@
 import { useState, useEffect } from 'react';
 import { Search, Users, TrendingUp, Heart, UserCheck, Eye, X, Loader } from 'lucide-react';
 import { fetchAPI } from '../utils/api';
+import { useSearch } from '../context/SearchContext';
 
 interface Props { darkMode: boolean; }
 
 export default function UserManagement({ darkMode }: Props) {
+  const { searchQuery } = useSearch();
   const [users, setUsers] = useState<any[]>([]);
   const [donations, setDonations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const [search, setSearch] = useState('');
+  const [localSearch, setLocalSearch] = useState('');
   const [viewUser, setViewUser] = useState<any | null>(null);
+
 
   useEffect(() => {
     const fetchData = async () => {
@@ -51,10 +54,12 @@ export default function UserManagement({ darkMode }: Props) {
   const theadBg = darkMode ? 'bg-gray-700/50' : 'bg-gray-50';
   const modalBg = darkMode ? 'bg-gray-800' : 'bg-white';
 
+  const combinedSearch = (searchQuery + ' ' + localSearch).trim().toLowerCase();
   const filtered = users.filter(u => {
-    const q = search.toLowerCase();
+    const q = combinedSearch;
     return !q || u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q) || u.phone.includes(q);
   });
+
 
   const activeCount = users.filter(u => u.status === 'Active').length;
   const totalDonationCount = donations.length;
@@ -105,9 +110,10 @@ export default function UserManagement({ darkMode }: Props) {
       {/* Search */}
       <div className={`flex items-center gap-2 px-4 py-3 rounded-xl border shadow-sm ${card} ${inputBg}`}>
         <Search size={15} className={textSub} />
-        <input className="bg-transparent outline-none text-sm flex-1" placeholder="Search users by name, email, or phone..." value={search} onChange={e => setSearch(e.target.value)} />
-        {search && <button onClick={() => setSearch('')}><X size={13} className={textSub} /></button>}
+        <input className="bg-transparent outline-none text-sm flex-1" placeholder="Filter users on this page..." value={localSearch} onChange={e => setLocalSearch(e.target.value)} />
+        {localSearch && <button onClick={() => setLocalSearch('')}><X size={13} className={textSub} /></button>}
       </div>
+
 
       {/* Table */}
       <div className={`rounded-2xl border shadow-sm overflow-hidden ${card}`}>

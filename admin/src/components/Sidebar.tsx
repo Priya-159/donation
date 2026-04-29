@@ -3,6 +3,12 @@ import {
   Users, MessageSquare, Bell, BarChart3, Settings, ChevronLeft,
   Utensils, Shirt, BookOpen, Coins, Leaf, X, Handshake
 } from 'lucide-react';
+import { useSearch } from '../context/SearchContext';
+import { useState, useEffect } from 'react';
+import { fetchAPI } from '../utils/api';
+
+
+
 
 export type NavSection =
   | 'dashboard' | 'donations' | 'inventory' | 'location' | 'pickups'
@@ -42,12 +48,40 @@ const categoryNav = [
 ];
 
 export default function Sidebar({ active, onNavigate, collapsed, onToggleCollapse, darkMode, mobileOpen, onMobileClose }: SidebarProps) {
+  const { searchQuery } = useSearch();
+  const [counts, setCounts] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    const fetchCounts = async () => {
+      try {
+        const res = await fetchAPI('/api/inventory/items/');
+        const data = res.results || res || [];
+        const countMap: Record<string, number> = {};
+        data.forEach((item: any) => {
+          countMap[item.category.toLowerCase()] = item.quantity;
+        });
+        setCounts(countMap);
+      } catch (err) {
+        console.error("Sidebar count fetch error:", err);
+      }
+    };
+    fetchCounts();
+    // Refresh every 30 seconds for live updates
+    const interval = setInterval(fetchCounts, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
   const bg = darkMode ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-200';
   const textBase = darkMode ? 'text-gray-300' : 'text-gray-600';
   const textHover = darkMode ? 'hover:bg-gray-800 hover:text-white' : 'hover:bg-green-50 hover:text-green-700';
   const activeStyle = darkMode ? 'bg-green-900/40 text-green-400 font-semibold' : 'bg-green-50 text-green-700 font-semibold';
   const divider = darkMode ? 'border-gray-700' : 'border-gray-100';
   const labelColor = darkMode ? 'text-gray-500' : 'text-gray-400';
+
+  const q = searchQuery.toLowerCase();
+  const filteredMain = mainNav.filter(item => !q || item.label.toLowerCase().includes(q));
+  const filteredCat = categoryNav.filter(item => !q || item.label.toLowerCase().includes(q));
+
 
   const NavItem = ({ item, iconColor }: { item: typeof mainNav[0]; iconColor?: string }) => {
     const Icon = item.icon;
@@ -61,9 +95,15 @@ export default function Sidebar({ active, onNavigate, collapsed, onToggleCollaps
       >
         <Icon size={18} className={`flex-shrink-0 transition-colors ${isActive ? 'text-green-600' : iconColor || ''}`} />
         {!collapsed && <span className="truncate">{item.label}</span>}
-        {!collapsed && isActive && (
+        {!collapsed && counts[item.id] !== undefined && (
+          <span className={`ml-auto px-2 py-0.5 rounded-full text-[10px] font-bold ${isActive ? 'bg-green-500 text-white' : (darkMode ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-500')}`}>
+            {counts[item.id]}
+          </span>
+        )}
+        {!collapsed && isActive && counts[item.id] === undefined && (
           <span className="ml-auto w-1.5 h-1.5 rounded-full bg-green-500" />
         )}
+
         {collapsed && (
           <div className={`absolute left-full ml-3 px-2 py-1 text-xs rounded-lg shadow-lg opacity-0 group-hover:opacity-100 pointer-events-none z-50 whitespace-nowrap transition-opacity
             ${darkMode ? 'bg-gray-800 text-white' : 'bg-gray-900 text-white'}`}>
@@ -102,14 +142,21 @@ export default function Sidebar({ active, onNavigate, collapsed, onToggleCollaps
       {/* Scrollable Nav */}
       <div className="flex-1 overflow-y-auto overflow-x-hidden py-4 px-2 space-y-1">
         {/* Main Nav */}
-        {!collapsed && <p className={`text-xs font-semibold uppercase tracking-wider px-2 mb-2 ${labelColor}`}>Main Menu</p>}
-        {mainNav.map(item => <NavItem key={item.id} item={item} />)}
+        {!collapsed && filteredMain.length > 0 && <p className={`text-xs font-semibold uppercase tracking-wider px-2 mb-2 ${labelColor}`}>Main Menu</p>}
+        {filteredMain.map(item => <NavItem key={item.id} item={item} />)}
 
         {/* Categories */}
-        <div className={`border-t ${divider} mt-4 pt-4`}>
-          {!collapsed && <p className={`text-xs font-semibold uppercase tracking-wider px-2 mb-2 ${labelColor}`}>Categories</p>}
-          {categoryNav.map(item => <NavItem key={item.id} item={item} iconColor={item.color} />)}
-        </div>
+        {filteredCat.length > 0 && (
+          <div className={`border-t ${divider} mt-4 pt-4`}>
+            {!collapsed && <p className={`text-xs font-semibold uppercase tracking-wider px-2 mb-2 ${labelColor}`}>Categories</p>}
+            {filteredCat.map(item => <NavItem key={item.id} item={item} iconColor={item.color} />)}
+          </div>
+        )}
+        
+        {searchQuery && filteredMain.length === 0 && filteredCat.length === 0 && (
+          <p className={`text-xs text-center py-4 ${labelColor}`}>No matching items</p>
+        )}
+
       </div>
 
       {/* Footer */}

@@ -45,20 +45,24 @@ export default function Reports({ darkMode }: Props) {
 
   // Calculate KPIs
   const totalDonationsThisMonth = donations.length; 
-  const totalMonetary = donations.filter((d: any) => d.category === 'Monetary').length * 100; // Mock calculation
+  const totalMonetary = donations
+    .filter((d: any) => d.category === 'Monetary')
+    .reduce((sum, d) => sum + (d.quantity || 0), 0);
   
-  const totalInvReceived = inventory.reduce((acc: number, inv: any) => acc + inv.quantity + 20, 0); // Mock distribution pad
-  const totalInvDistributed = inventory.length * 20; // Mock distribution count
+  const totalInvReceived = inventory.reduce((acc: number, inv: any) => acc + inv.quantity, 0);
+  const totalInvDistributed = inventory.reduce((acc: number, inv: any) => acc + (inv.distributed || 0), 0);
   const distRate = totalInvReceived > 0 ? Math.round((totalInvDistributed / totalInvReceived) * 100) : 0;
+
   
   const activeDonors = users.filter((u: any) => true).length; // Assume all active for now
 
   const kpis = [
-    { label: 'Total Donations Recorded', value: totalDonationsThisMonth, change: 'Live', up: true },
-    { label: 'Monetary Received (Est)', value: `$${totalMonetary.toLocaleString()}`, change: 'Live', up: true },
+    { label: 'Total Donations Recorded', value: totalDonationsThisMonth.toLocaleString('en-IN'), change: 'Live', up: true },
+    { label: 'Monetary Received', value: `₹${totalMonetary.toLocaleString('en-IN')}`, change: 'Live', up: true },
     { label: 'Distribution Rate', value: `${distRate}%`, change: 'Live', up: true },
-    { label: 'Registered Donors', value: activeDonors, change: 'Live', up: true },
+    { label: 'Registered Donors', value: activeDonors.toLocaleString('en-IN'), change: 'Live', up: true },
   ];
+
 
   // Calculate Category Pie Data
   const catCounts = donations.reduce((acc: any, d: any) => {
@@ -84,16 +88,20 @@ export default function Reports({ darkMode }: Props) {
     }
   });
 
-  const monetaryData = monthlyTrends.map(m => ({ month: m.month, amount: m.Monetary * 100 }));
+  const monetaryData = monthlyTrends.map(m => ({ month: m.month, amount: donations
+    .filter((d: any) => d.category === 'Monetary' && new Date(d.timestamp).toLocaleDateString('en-US', { month: 'short' }) === m.month)
+    .reduce((sum, d) => sum + (d.quantity || 0), 0) }));
+
 
   // Inventory Table Data
   const formattedInventory = inventory.map((inv: any) => ({
     category: inv.category,
-    totalReceived: inv.quantity + 20,
-    distributed: 20,
+    totalReceived: inv.quantity,
+    distributed: inv.distributed || 0,
     color: catColors[inv.category] || '#9ca3af',
     icon: catIcons[inv.category] || '📦'
   }));
+
 
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
@@ -160,7 +168,8 @@ export default function Reports({ darkMode }: Props) {
         <div className={`rounded-2xl border p-5 shadow-sm ${card}`}>
           <div className="mb-5">
             <h2 className={`font-bold text-base ${textMain}`}>Monetary Donation Trend</h2>
-            <p className={`text-xs ${textSub}`}>Monthly monetary contributions (USD)</p>
+            <p className={`text-xs ${textSub}`}>Monthly monetary contributions (INR)</p>
+
           </div>
           <ResponsiveContainer width="100%" height={220}>
             <AreaChart data={monetaryData}>
@@ -172,8 +181,9 @@ export default function Reports({ darkMode }: Props) {
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke={gridLine} vertical={false} />
               <XAxis dataKey="month" tick={{ fill: axisColor, fontSize: 12 }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fill: axisColor, fontSize: 12 }} axisLine={false} tickLine={false} tickFormatter={v => `$${v}`} />
-              <Tooltip formatter={(v: any) => [`$${Number(v).toLocaleString()}`, 'Amount']} contentStyle={{ background: darkMode ? '#1f2937' : '#fff', border: 'none', borderRadius: '12px', fontSize: '12px' }} />
+              <YAxis tick={{ fill: axisColor, fontSize: 12 }} axisLine={false} tickLine={false} tickFormatter={v => `₹${v}`} />
+              <Tooltip formatter={(v: any) => [`₹${Number(v).toLocaleString('en-IN')}`, 'Amount']} contentStyle={{ background: darkMode ? '#1f2937' : '#fff', border: 'none', borderRadius: '12px', fontSize: '12px' }} />
+
               <Area type="monotone" dataKey="amount" stroke="#10b981" strokeWidth={3} fill="url(#monetaryGrad)" dot={{ fill: '#10b981', r: 4 }} />
             </AreaChart>
           </ResponsiveContainer>

@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { MapPin, ExternalLink, Phone, Calendar, Loader, Search, X } from 'lucide-react';
 import { fetchAPI } from '../utils/api';
+import { useSearch } from '../context/SearchContext';
+
 
 interface Props { darkMode: boolean; }
 
@@ -20,9 +22,10 @@ const statusColors: Record<string, string> = {
 };
 
 export default function LocationTracking({ darkMode }: Props) {
+  const { searchQuery } = useSearch();
   const [donations, setDonations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
+  const [localSearch, setLocalSearch] = useState('');
 
   useEffect(() => {
     const fetchDonations = async () => {
@@ -54,8 +57,9 @@ export default function LocationTracking({ darkMode }: Props) {
     }, {} as Record<string, number>)
   ).sort((a, b) => b[1] - a[1]);
 
+  const combinedSearch = (searchQuery + ' ' + localSearch).trim().toLowerCase();
   const filteredDonations = donations.filter(d => {
-    const q = search.toLowerCase();
+    const q = combinedSearch;
     const address = d.pickup_details?.full_address || '';
     const city = d.pickup_details?.city || '';
     return !q || 
@@ -63,6 +67,7 @@ export default function LocationTracking({ darkMode }: Props) {
       address.toLowerCase().includes(q) || 
       city.toLowerCase().includes(q);
   });
+
 
   const openMaps = (address: string, city: string) => {
     const query = encodeURIComponent(`${address}, ${city}`);
@@ -91,14 +96,9 @@ export default function LocationTracking({ darkMode }: Props) {
       </div>
 
       {/* Visual Map Placeholder */}
-      <div className={`rounded-2xl border shadow-sm overflow-hidden ${card}`}>
-        <div className={`px-5 py-4 border-b ${darkMode ? 'border-gray-700' : 'border-gray-100'}`}>
-          <h2 className={`font-bold text-base ${textMain}`}>Donation Location Map</h2>
-          <p className={`text-xs ${textSub}`}>Visual overview of all donation addresses across NYC</p>
-        </div>
-        <div className={`relative overflow-hidden ${darkMode ? 'bg-gray-900' : 'bg-slate-50'}`} style={{ height: '320px' }}>
-          {/* SVG Map of NYC boroughs */}
-          <svg viewBox="0 0 600 400" className="w-full h-full opacity-80">
+        <div className={`relative overflow-hidden ${darkMode ? 'bg-gray-900' : 'bg-slate-50'}`} style={{ height: '400px' }}>
+          {/* SVG Map of India (Simplified) */}
+          <svg viewBox="0 0 400 450" className="w-full h-full opacity-80 mx-auto">
             <defs>
               <radialGradient id="glow-green" cx="50%" cy="50%" r="50%">
                 <stop offset="0%" stopColor="#22c55e" stopOpacity="0.6" />
@@ -106,57 +106,48 @@ export default function LocationTracking({ darkMode }: Props) {
               </radialGradient>
             </defs>
             {/* Background */}
-            <rect width="600" height="400" fill={darkMode ? '#111827' : '#e2e8f0'} />
-            {/* Water */}
-            <ellipse cx="300" cy="200" rx="280" ry="180" fill={darkMode ? '#1e3a5f' : '#bfdbfe'} opacity="0.3" />
-
-            {/* Borough shapes (simplified) */}
-            {/* Manhattan */}
-            <ellipse cx="280" cy="160" rx="40" ry="80" fill={darkMode ? '#16a34a' : '#86efac'} opacity="0.6" />
-            {/* Brooklyn */}
-            <ellipse cx="310" cy="280" rx="70" ry="50" fill={darkMode ? '#15803d' : '#a7f3d0'} opacity="0.5" />
-            {/* Queens */}
-            <ellipse cx="400" cy="200" rx="80" ry="60" fill={darkMode ? '#166534' : '#bbf7d0'} opacity="0.5" />
-            {/* Bronx */}
-            <ellipse cx="290" cy="90" rx="60" ry="40" fill={darkMode ? '#14532d' : '#d1fae5'} opacity="0.5" />
-            {/* Staten Island */}
-            <ellipse cx="160" cy="310" rx="55" ry="40" fill={darkMode ? '#052e16' : '#ecfdf5'} opacity="0.5" />
-
-            {/* Borough Labels */}
-            <text x="280" y="158" textAnchor="middle" fontSize="11" fontWeight="bold" fill={darkMode ? '#86efac' : '#15803d'}>Manhattan</text>
-            <text x="310" y="282" textAnchor="middle" fontSize="11" fontWeight="bold" fill={darkMode ? '#86efac' : '#15803d'}>Brooklyn</text>
-            <text x="400" y="202" textAnchor="middle" fontSize="11" fontWeight="bold" fill={darkMode ? '#86efac' : '#15803d'}>Queens</text>
-            <text x="290" y="90" textAnchor="middle" fontSize="11" fontWeight="bold" fill={darkMode ? '#86efac' : '#15803d'}>Bronx</text>
-            <text x="160" y="312" textAnchor="middle" fontSize="10" fontWeight="bold" fill={darkMode ? '#86efac' : '#15803d'}>Staten Island</text>
+            <rect width="400" height="450" fill={darkMode ? '#111827' : '#e2e8f0'} />
+            
+            {/* India Shape (Very simplified) */}
+            <path d="M200 40 L230 60 L240 90 L270 110 L280 150 L260 200 L240 250 L220 350 L200 420 L180 350 L160 250 L140 200 L120 150 L130 110 L160 90 L170 60 Z" 
+                  fill={darkMode ? '#14532d' : '#86efac'} opacity="0.4" stroke={darkMode ? '#22c55e' : '#15803d'} strokeWidth="1" />
+            
+            {/* Labels for Regions */}
+            <text x="200" y="80" textAnchor="middle" fontSize="10" fontWeight="bold" fill={darkMode ? '#86efac' : '#15803d'}>North India</text>
+            <text x="200" y="400" textAnchor="middle" fontSize="10" fontWeight="bold" fill={darkMode ? '#86efac' : '#15803d'}>South India</text>
+            <text x="140" y="200" textAnchor="middle" fontSize="10" fontWeight="bold" fill={darkMode ? '#86efac' : '#15803d'}>West</text>
+            <text x="260" y="200" textAnchor="middle" fontSize="10" fontWeight="bold" fill={darkMode ? '#86efac' : '#15803d'}>East</text>
 
             {/* Donation Pins dynamically derived */}
             {citySummary.map(([city, count], i) => {
-              // Map dynamic cities to SVG coordinates roughly
-              let cx = 300, cy = 200; // default center
-              if (city.toLowerCase().includes('manhattan')) { cx = 280; cy = 150; }
-              else if (city.toLowerCase().includes('brooklyn')) { cx = 318; cy = 272; }
-              else if (city.toLowerCase().includes('queens')) { cx = 408; cy = 198; }
-              else if (city.toLowerCase().includes('bronx')) { cx = 285; cy = 88; }
-              else if (city.toLowerCase().includes('staten')) { cx = 155; cy = 308; }
-              else { cx = 200 + (i * 30); cy = 150 + (i * 30); } // Scatter unknown cities
+              // Map dynamic cities to coordinates (Approximate for India)
+              let cx = 200, cy = 200; 
+              const c = city.toLowerCase();
+              if (c.includes('delhi') || c.includes('noida') || c.includes('gurgaon')) { cx = 200; cy = 120; }
+              else if (c.includes('mumbai') || c.includes('pune')) { cx = 155; cy = 260; }
+              else if (c.includes('bangalore') || c.includes('chennai') || c.includes('hyderabad')) { cx = 200; cy = 340; }
+              else if (c.includes('kolkata')) { cx = 310; cy = 220; }
+              else if (c.includes('jaipur')) { cx = 175; cy = 150; }
+              else if (c.includes('lucknow')) { cx = 230; cy = 160; }
+              else { cx = 150 + (i * 20) % 100; cy = 150 + (i * 30) % 200; } 
               
               return (
                 <g key={city}>
-                  <circle cx={cx} cy={cy} r="20" fill="url(#glow-green)" />
-                  <circle cx={cx} cy={cy} r="10" fill="#22c55e" opacity="0.9" />
-                  <circle cx={cx} cy={cy} r="5" fill="white" />
-                  <text x={cx} y={cy - 16} textAnchor="middle" fontSize="9" fontWeight="bold" fill="#22c55e">{count}</text>
+                  <circle cx={cx} cy={cy} r="18" fill="url(#glow-green)" />
+                  <circle cx={cx} cy={cy} r="8" fill="#22c55e" opacity="0.9" />
+                  <circle cx={cx} cy={cy} r="4" fill="white" />
+                  <text x={cx} y={cy - 14} textAnchor="middle" fontSize="9" fontWeight="bold" fill="#22c55e">{count}</text>
                 </g>
               );
             })}
           </svg>
+
           <div className="absolute bottom-4 right-4 flex gap-2">
             <div className={`px-3 py-1.5 rounded-lg text-xs font-medium ${darkMode ? 'bg-gray-800 text-gray-300' : 'bg-white text-gray-600'} shadow`}>
               🟢 Active Donations
             </div>
           </div>
         </div>
-      </div>
 
       {/* Address List */}
       <div className={`rounded-2xl border shadow-sm overflow-hidden ${card}`}>
@@ -171,12 +162,13 @@ export default function LocationTracking({ darkMode }: Props) {
               <Search size={14} className={textSub} />
               <input 
                 className="bg-transparent outline-none flex-1 text-xs" 
-                placeholder="Search by donor, city, or address..." 
-                value={search} 
-                onChange={e => setSearch(e.target.value)} 
+                placeholder="Filter locations on this page..." 
+                value={localSearch} 
+                onChange={e => setLocalSearch(e.target.value)} 
               />
-              {search && <button onClick={() => setSearch('')}><X size={12} className={textSub} /></button>}
+              {localSearch && <button onClick={() => setLocalSearch('')}><X size={12} className={textSub} /></button>}
             </div>
+
           </div>
         </div>
         <div className="overflow-x-auto">

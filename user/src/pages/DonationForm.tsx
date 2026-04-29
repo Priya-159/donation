@@ -88,12 +88,13 @@ export default function DonationForm() {
     setErrorMsg('');
     try {
       // Create a separate donation record for each type selected
-      const promises = form.types.map(type => {
         const payload = {
           category: categoryMap[type],
+          quantity: parseInt(form.quantities[type] || '1', 10),
           quantity_description: type === 'money'
             ? `₹${form.quantities[type] || '0'} (Txn: ${form.transactionId})`
             : `${form.quantities[type] || 'N/A'} - ${form.descriptions[type] || ''}`,
+
           pickup_details: {
             full_address: form.address || '',
             city: form.city || '',
@@ -203,12 +204,13 @@ export default function DonationForm() {
                              </div>
                            </div>
                          ) : (
-                           <div className="space-y-4">
                              <div>
-                               <label className={`block text-sm font-semibold mb-2 ${dark ? 'text-gray-200' : 'text-gray-700'}`}>Quantity of {dt.label} (Required)</label>
-                               <input type="text" value={form.quantities[type] || ''} onChange={e => updateQuantities(type, e.target.value)} placeholder="e.g. 10 units, 5kg"
+                               <label className={`block text-sm font-semibold mb-2 ${dark ? 'text-gray-200' : 'text-gray-700'}`}>Quantity of {dt.label} (Number Required)</label>
+                               <input type="number" value={form.quantities[type] || ''} onChange={e => updateQuantities(type, e.target.value)} placeholder="e.g. 10"
                                  className={`w-full px-4 py-3 rounded-xl border-2 text-sm ${dark ? 'bg-slate-700 border-slate-600 text-white focus:border-primary-500' : 'bg-white border-gray-200 focus:border-primary-500'} outline-none`} />
                              </div>
+
+
                              <div>
                                <label className={`block text-sm font-semibold mb-2 ${dark ? 'text-gray-200' : 'text-gray-700'}`}>Description (Required)</label>
                                <textarea value={form.descriptions[type] || ''} onChange={e => updateDescriptions(type, e.target.value)} rows={2} placeholder="Describe the items..."

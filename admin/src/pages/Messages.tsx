@@ -1,6 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Paperclip, Search, Info, Heart, X, Loader } from 'lucide-react';
+import { Send, Paperclip, Search, Info, Heart, X, Loader, Check, CheckCheck } from 'lucide-react';
+
 import { fetchAPI } from '../utils/api';
+import { useSearch } from '../context/SearchContext';
+
 
 interface Props { darkMode: boolean; }
 
@@ -12,12 +15,14 @@ const quickActions = [
 ];
 
 export default function Messages({ darkMode }: Props) {
+  const { searchQuery } = useSearch();
   const [convList, setConvList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeId, setActiveId] = useState<string | null>(null);
   
   const [input, setInput] = useState('');
-  const [search, setSearch] = useState('');
+  const [localSearch, setLocalSearch] = useState('');
+
   const [mobileShowChat, setMobileShowChat] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -179,7 +184,9 @@ export default function Messages({ darkMode }: Props) {
     }
   };
 
-  const filtered = convList.filter(c => !search || c.userName.toLowerCase().includes(search.toLowerCase()));
+  const combinedSearch = (searchQuery + ' ' + localSearch).trim().toLowerCase();
+  const filtered = convList.filter(c => !combinedSearch || c.userName.toLowerCase().includes(combinedSearch));
+
 
   const avatarColors = [
     'from-green-400 to-emerald-500',
@@ -202,8 +209,10 @@ export default function Messages({ darkMode }: Props) {
           <h2 className={`font-bold text-base mb-3 ${textMain}`}>Messages</h2>
           <div className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-sm ${inputBg}`}>
             <Search size={13} className={textSub} />
-            <input className="bg-transparent outline-none flex-1 text-sm" placeholder="Search conversations..." value={search} onChange={e => setSearch(e.target.value)} />
+            <input className="bg-transparent outline-none flex-1 text-sm" placeholder="Filter chats on this page..." value={localSearch} onChange={e => setLocalSearch(e.target.value)} />
+            {localSearch && <button onClick={() => setLocalSearch('')}><X size={12} className={textSub} /></button>}
           </div>
+
         </div>
 
         {/* Conversations */}
@@ -287,10 +296,16 @@ export default function Messages({ darkMode }: Props) {
                     <div className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed shadow-sm ${msg.type === 'sent' ? `${sentBubble} rounded-br-md` : `${recvBubble} rounded-bl-md`}`}>
                       {msg.text}
                     </div>
-                    <p className={`text-xs mt-1 ${textSub} ${msg.type === 'sent' ? 'text-right' : 'text-left'}`}>{msg.timestamp}</p>
+                    <div className={`flex items-center gap-1 mt-1 ${msg.type === 'sent' ? 'justify-end' : 'justify-start'}`}>
+                      <p className={`text-[10px] ${textSub}`}>{msg.timestamp}</p>
+                      {msg.type === 'sent' && (
+                        msg.read ? <CheckCheck size={12} className="text-blue-400" /> : <Check size={12} className={textSub} />
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}
+
               <div ref={messagesEndRef} />
             </div>
 
