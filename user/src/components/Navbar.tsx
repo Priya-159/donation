@@ -4,10 +4,10 @@ import { useApp } from '../context/AppContext';
 import { Heart, Menu, X, Sun, Moon, Globe, Bell, User, LogOut } from 'lucide-react';
 
 export default function Navbar() {
-  const { dark, toggleDark, lang, setLang, t, isLoggedIn, logout, notifications } = useApp();
+  const { dark, toggleDark, lang, setLang, t, isLoggedIn, logout, notifications, unreadMessagesCount } = useApp();
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
-  const unread = notifications.filter(n => !n.read).length;
+  const unread = notifications.filter(n => !n.read).length + unreadMessagesCount;
 
   const navLinks = [
     { to: '/', label: t.nav.home },
@@ -58,8 +58,11 @@ export default function Navbar() {
             </button>
 
             {isLoggedIn && (
-              <Link to="/notifications" className={`p-2 rounded-lg transition-colors ${dark ? 'text-gray-300 hover:bg-slate-800' : 'text-gray-600 hover:bg-gray-100'}`}>
+              <Link to="/notifications" className={`p-2 rounded-lg transition-colors relative ${dark ? 'text-gray-300 hover:bg-slate-800' : 'text-gray-600 hover:bg-gray-100'}`}>
                 <Bell className="w-4 h-4" />
+                {unread > 0 && (
+                  <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-green-500 rounded-full border-2 border-white dark:border-slate-900 animate-pulse" />
+                )}
               </Link>
             )}
 

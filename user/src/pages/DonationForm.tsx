@@ -4,33 +4,40 @@ import { useApp } from '../context/AppContext';
 import { fetchAPI } from '../utils/api';
 import { Check, ChevronRight, ChevronLeft, Package, MapPin, Navigation, Shield, Upload, Calendar, Clock, Utensils, Shirt, BookOpen, Banknote, Sprout, Loader } from 'lucide-react';
 
-const donationTypes = [
-  { value: 'food', label: 'Food', icon: Utensils, color: 'from-orange-400 to-red-400' },
-  { value: 'clothes', label: 'Clothes', icon: Shirt, color: 'from-blue-400 to-indigo-400' },
-  { value: 'books', label: 'Books', icon: BookOpen, color: 'from-purple-400 to-pink-400' },
-  { value: 'money', label: 'Monetary', icon: Banknote, color: 'from-green-400 to-emerald-400' },
-  { value: 'trees', label: 'Environment', icon: Sprout, color: 'from-teal-400 to-cyan-400' },
-];
-
-const categoryMap: Record<string, string> = {
-  food: 'Food',
-  clothes: 'Clothes',
-  books: 'Books',
-  money: 'Monetary',
-  trees: 'Environment'
-};
-
 export default function DonationForm() {
   const { dark, t, user } = useApp();
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [categories, setCategories] = useState<any[]>([]);
   const [form, setForm] = useState({
     types: [] as string[], quantities: {} as Record<string, string>, descriptions: {} as Record<string, string>, images: {} as Record<string, string | null>,
     address: '', city: '', state: '', pincode: '', landmark: '', phone: '', date: '', time: '',
     useCurrentLocation: false, consent: false, transactionId: '',
   });
+
+  useEffect(() => {
+    fetchAPI('/api/donations/categories/')
+      .then(data => {
+        const cats = data.results || data || [];
+        setCategories(cats);
+      })
+      .catch(err => console.error("Failed to load categories", err));
+  }, []);
+
+  const donationTypes = categories.map(c => ({
+    value: c.name.toLowerCase(),
+    label: c.name,
+    icon: c.name === 'Food' ? Utensils : c.name === 'Clothes' ? Shirt : c.name === 'Books' ? BookOpen : c.name === 'Monetary' ? Banknote : c.name === 'Environment' ? Sprout : Package,
+    color: c.name === 'Food' ? 'from-orange-400 to-red-400' : c.name === 'Clothes' ? 'from-blue-400 to-indigo-400' : c.name === 'Books' ? 'from-purple-400 to-pink-400' : c.name === 'Monetary' ? 'from-green-400 to-emerald-400' : 'from-teal-400 to-cyan-400',
+    emoji: c.icon
+  }));
+
+  const categoryMap = categories.reduce((acc, c) => {
+    acc[c.name.toLowerCase()] = c.name;
+    return acc;
+  }, {} as Record<string, string>);
 
   // Pre-fill user details if available
   useEffect(() => {
@@ -88,6 +95,7 @@ export default function DonationForm() {
     setErrorMsg('');
     try {
       // Create a separate donation record for each type selected
+      const promises = form.types.map((type) => {
         const payload = {
           category: categoryMap[type],
           quantity: parseInt(form.quantities[type] || '1', 10),
@@ -101,7 +109,6 @@ export default function DonationForm() {
             state: form.state || '',
             pincode: form.pincode || '',
             landmark: form.landmark || '',
-            // Split into separate date and time fields as the model expects
             scheduled_date: form.date || null,
             scheduled_time: form.time || null,
           }
@@ -168,7 +175,11 @@ export default function DonationForm() {
                         }}
                         className={`p-4 rounded-2xl border-2 text-center transition-all ${isSelected ? 'border-primary-500 shadow-md shadow-primary-500/15 bg-primary-50 dark:bg-slate-700/50' : dark ? 'border-slate-600 hover:border-slate-500' : 'border-gray-200 hover:border-gray-300'}`}>
                         <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${dt.color} flex items-center justify-center mx-auto mb-2 ${isSelected ? 'scale-110 shadow-lg' : ''} transition-transform`}>
-                          <dt.icon className="w-5 h-5 text-white" />
+                          {dt.emoji ? (
+                            <span className="text-xl leading-none">{dt.emoji}</span>
+                          ) : (
+                            <dt.icon className="w-5 h-5 text-white" />
+                          )}
                         </div>
                         <span className={`text-sm font-medium ${dark ? 'text-gray-200' : 'text-gray-700'}`}>{dt.label}</span>
                       </button>
@@ -204,33 +215,32 @@ export default function DonationForm() {
                              </div>
                            </div>
                          ) : (
-                             <div>
-                               <label className={`block text-sm font-semibold mb-2 ${dark ? 'text-gray-200' : 'text-gray-700'}`}>Quantity of {dt.label} (Number Required)</label>
-                               <input type="number" value={form.quantities[type] || ''} onChange={e => updateQuantities(type, e.target.value)} placeholder="e.g. 10"
-                                 className={`w-full px-4 py-3 rounded-xl border-2 text-sm ${dark ? 'bg-slate-700 border-slate-600 text-white focus:border-primary-500' : 'bg-white border-gray-200 focus:border-primary-500'} outline-none`} />
-                             </div>
-
-
-                             <div>
-                               <label className={`block text-sm font-semibold mb-2 ${dark ? 'text-gray-200' : 'text-gray-700'}`}>Description (Required)</label>
-                               <textarea value={form.descriptions[type] || ''} onChange={e => updateDescriptions(type, e.target.value)} rows={2} placeholder="Describe the items..."
-                                 className={`w-full px-4 py-3 rounded-xl border-2 text-sm resize-none ${dark ? 'bg-slate-700 border-slate-600 text-white focus:border-primary-500' : 'bg-white border-gray-200 focus:border-primary-500'} outline-none`} />
-                             </div>
-                             <div>
-                               <label className={`block text-sm font-semibold mb-2 ${dark ? 'text-gray-200' : 'text-gray-700'}`}>Upload Image (Optional)</label>
-                               <label className={`flex flex-col items-center justify-center w-full h-32 rounded-xl border-2 border-dashed cursor-pointer transition-colors ${dark ? 'border-slate-600 hover:border-slate-500' : 'border-gray-300 hover:border-primary-400'} ${form.images[type] ? 'border-primary-500' : ''}`}>
-                                 {form.images[type] ? (
-                                   <img src={form.images[type] as string} alt="Preview" className="h-full w-full object-cover rounded-xl" />
-                                 ) : (
-                                   <div className="flex flex-col items-center p-2 text-center">
-                                     <Upload className={`w-6 h-6 mb-2 ${dark ? 'text-gray-500' : 'text-gray-400'}`} />
-                                     <span className={`text-xs ${dark ? 'text-gray-500' : 'text-gray-400'}`}>Click to upload</span>
-                                   </div>
-                                 )}
-                                 <input type="file" accept="image/*" className="hidden" onChange={(e) => handleImageChange(type, e)} />
-                               </label>
-                             </div>
-                           </div>
+                              <div className="space-y-4">
+                                <div>
+                                  <label className={`block text-sm font-semibold mb-2 ${dark ? 'text-gray-200' : 'text-gray-700'}`}>Quantity of {dt.label} (Number Required)</label>
+                                  <input type="number" value={form.quantities[type] || ''} onChange={e => updateQuantities(type, e.target.value)} placeholder="e.g. 10"
+                                    className={`w-full px-4 py-3 rounded-xl border-2 text-sm ${dark ? 'bg-slate-700 border-slate-600 text-white focus:border-primary-500' : 'bg-white border-gray-200 focus:border-primary-500'} outline-none`} />
+                                </div>
+                                <div>
+                                  <label className={`block text-sm font-semibold mb-2 ${dark ? 'text-gray-200' : 'text-gray-700'}`}>Description (Required)</label>
+                                  <textarea value={form.descriptions[type] || ''} onChange={e => updateDescriptions(type, e.target.value)} rows={2} placeholder="Describe the items..."
+                                    className={`w-full px-4 py-3 rounded-xl border-2 text-sm resize-none ${dark ? 'bg-slate-700 border-slate-600 text-white focus:border-primary-500' : 'bg-white border-gray-200 focus:border-primary-500'} outline-none`} />
+                                </div>
+                                <div>
+                                  <label className={`block text-sm font-semibold mb-2 ${dark ? 'text-gray-200' : 'text-gray-700'}`}>Upload Image (Optional)</label>
+                                  <label className={`flex flex-col items-center justify-center w-full h-32 rounded-xl border-2 border-dashed cursor-pointer transition-colors ${dark ? 'border-slate-600 hover:border-slate-500' : 'border-gray-300 hover:border-primary-400'} ${form.images[type] ? 'border-primary-500' : ''}`}>
+                                    {form.images[type] ? (
+                                      <img src={form.images[type] as string} alt="Preview" className="h-full w-full object-cover rounded-xl" />
+                                    ) : (
+                                      <div className="flex flex-col items-center p-2 text-center">
+                                        <Upload className={`w-6 h-6 mb-2 ${dark ? 'text-gray-500' : 'text-gray-400'}`} />
+                                        <span className={`text-xs ${dark ? 'text-gray-500' : 'text-gray-400'}`}>Click to upload</span>
+                                      </div>
+                                    )}
+                                    <input type="file" accept="image/*" className="hidden" onChange={(e) => handleImageChange(type, e)} />
+                                  </label>
+                                </div>
+                              </div>
                          )}
                        </div>
                      );

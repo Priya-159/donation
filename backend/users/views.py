@@ -17,6 +17,7 @@ class UserListView(generics.ListAPIView):
     queryset = User.objects.all()
     permission_classes = (permissions.IsAdminUser,)
     serializer_class = UserSerializer
+    pagination_class = None
 
 class ProfileView(generics.RetrieveUpdateAPIView):
     permission_classes = (permissions.IsAuthenticated,)
@@ -84,8 +85,17 @@ class VolunteerApplicationAdminListView(generics.ListAPIView):
     queryset = VolunteerApplication.objects.all().order_by('-created_at')
     permission_classes = (permissions.IsAdminUser,)
     serializer_class = AdminVolunteerApplicationSerializer
+    pagination_class = None
 
 class VolunteerApplicationAdminDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = VolunteerApplication.objects.all()
     permission_classes = (permissions.IsAdminUser,)
     serializer_class = AdminVolunteerApplicationSerializer
+
+    def perform_update(self, serializer):
+        instance = serializer.save()
+        if instance.status == 'Approved':
+            user = instance.user
+            if user.role != 'ADMIN':
+                user.role = 'VOLUNTEER'
+                user.save()

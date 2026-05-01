@@ -3,7 +3,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend
 } from 'recharts';
-import { Heart, DollarSign, Clock, CheckCircle2, TrendingUp, ArrowUpRight, Loader } from 'lucide-react';
+import { Heart, DollarSign, Clock, CheckCircle2, TrendingUp, ArrowUpRight, Loader, Users, BarChart3, Utensils } from 'lucide-react';
 import { fetchAPI } from '../utils/api';
 import { useSearch } from '../context/SearchContext';
 
@@ -17,36 +17,25 @@ export default function Dashboard({ darkMode }: Props) {
   const [donations, setDonations] = useState<any[]>([]);
   const [inventory, setInventory] = useState<any[]>([]);
   const [notifications, setNotifications] = useState<any[]>([]);
+  const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [localSearch, setLocalSearch] = useState('');
 
-
-  // Styling Variables
-  const card = darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100';
-  const textMain = darkMode ? 'text-white' : 'text-gray-800';
-  const textSub = darkMode ? 'text-gray-400' : 'text-gray-500';
-  const gridLine = darkMode ? '#374151' : '#f3f4f6';
-  const axisColor = darkMode ? '#9ca3af' : '#6b7280';
-  
-  const statusColors: Record<string, string> = {
-    Completed: 'bg-green-100 text-green-700',
-    Scheduled: 'bg-blue-100 text-blue-700',
-    Pending: 'bg-amber-100 text-amber-700',
-    Cancelled: 'bg-red-100 text-red-700',
-  };
 
   // Fetch Data from Backend
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [donsRes, invRes, notifsRes] = await Promise.all([
+        const [donsRes, invRes, notifsRes, statsRes] = await Promise.all([
           fetchAPI('/api/donations/').catch(() => []),
           fetchAPI('/api/inventory/items/').catch(() => []),
-          fetchAPI('/api/chat/notifications/').catch(() => [])
+          fetchAPI('/api/chat/notifications/').catch(() => []),
+          fetchAPI('/api/donations/dashboard_stats/').catch(() => null)
         ]);
         setDonations(donsRes.results || donsRes || []);
         setInventory(invRes.results || invRes || []);
         setNotifications(notifsRes.results || notifsRes || []);
+        setStats(statsRes);
       } catch (err) {
         console.error("Dashboard data load error:", err);
       } finally {
@@ -56,65 +45,73 @@ export default function Dashboard({ darkMode }: Props) {
     loadData();
   }, []);
 
-  // Compute Metrics dynamically from Donations Table
-  const totalDonations = donations.length;
-  const totalMonetary = donations.filter((d: any) => d.category === 'Monetary').length * 100; // Assuming 100 avg
+  // Compute Metrics dynamically
+  const totalDonations = stats?.total_donations || donations.length;
+  const totalMonetary = stats?.monetary_total || 0;
   const pendingPickups = donations.filter((d: any) => d.status === 'Pending' || d.status === 'Scheduled').length;
-  const completedDonations = donations.filter((d: any) => d.status === 'Completed').length;
+  const activeVolunteers = stats?.active_volunteers || 0;
 
   const summaryCards = [
     { label: 'Total Donations', value: totalDonations.toLocaleString('en-IN'), icon: Heart, bg: 'from-green-400 to-emerald-500', sub: 'Updated live', trend: 'up' },
-    { label: 'Monetary Contributions', value: `₹${totalMonetary.toLocaleString('en-IN')}`, icon: DollarSign, bg: 'from-blue-400 to-indigo-500', sub: 'Estimated', trend: 'up' },
-    { label: 'Pending Pickups', value: pendingPickups, icon: Clock, bg: 'from-amber-400 to-orange-500', sub: 'Needs attention', trend: 'neutral' },
-    { label: 'Completed Donations', value: completedDonations, icon: CheckCircle2, bg: 'from-violet-400 to-purple-500', sub: 'Successfully delivered', trend: 'up' },
+    { label: 'Active Volunteers', value: activeVolunteers.toLocaleString('en-IN'), icon: Users, bg: 'from-amber-400 to-orange-500', sub: 'Ready for pickup', trend: 'neutral' },
+    { label: 'Distribution Rate', value: `${Math.round(stats?.distribution_rate || 0)}%`, icon: TrendingUp, bg: 'from-violet-400 to-purple-500', sub: 'Overall efficiency', trend: 'up' },
   ];
 
-  // Category Pie Data derived from real donations
+  // Food Stats from backend
+  const foodStats = stats?.food_stats || { received: 0, distributed: 0, remaining: 0, active: 0 };
+
+  const foodDonationCards = [
+    { label: 'Total Received', value: foodStats.received.toLocaleString(), color: 'text-blue-500' },
+    { label: 'Distributed', value: foodStats.distributed.toLocaleString(), color: 'text-green-500' },
+    { label: 'Remaining Stock', value: foodStats.remaining.toLocaleString(), color: 'text-amber-500' },
+    { label: 'Active Donations', value: foodStats.active.toLocaleString(), color: 'text-purple-500' },
+  ];
+
+  // Styling Variables
+  const card = darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100';
+  const textMain = darkMode ? 'text-white' : 'text-gray-800';
+  const textSub = darkMode ? 'text-gray-400' : 'text-gray-500';
+  const gridLine = darkMode ? '#374151' : '#f3f4f6';
+  const axisColor = darkMode ? '#9ca3af' : '#6b7280';
+
+  const statusColors: Record<string, string> = {
+    Completed: 'bg-green-100 text-green-700',
+    Scheduled: 'bg-blue-100 text-blue-700',
+    Pending: 'bg-amber-100 text-amber-700',
+    Cancelled: 'bg-red-100 text-red-700',
+  };
+
+  const catColors: any = { Food: '#f59e0b', Clothes: '#8b5cf6', Books: '#3b82f6', Monetary: '#10b981', Environment: '#22c55e' };
+
+  // Category Pie Data
   const catCounts = donations.reduce((acc: any, d: any) => {
     acc[d.category] = (acc[d.category] || 0) + 1;
     return acc;
   }, {});
-  
-  const catColors: any = { Food: '#f59e0b', Clothes: '#8b5cf6', Books: '#3b82f6', Monetary: '#10b981', Environment: '#22c55e' };
-  
+
   const categoryPieData = Object.keys(catCounts).map(cat => ({
     name: cat, value: catCounts[cat], color: catColors[cat] || '#9ca3af'
   }));
 
-  // Activity Feed derived from Notifications or fallback to Donations
-  const recentActivity = notifications.length > 0 
+  // Activity Feed
+  const recentActivity = notifications.length > 0
     ? notifications.slice(0, 5).map((n: any) => ({
-        id: n.id, action: n.title, donor: 'System', category: 'Alert',
-        time: new Date(n.timestamp).toLocaleTimeString(), icon: '🔔'
-      }))
+      id: n.id, action: n.title, donor: 'System', category: 'Alert',
+      time: new Date(n.timestamp).toLocaleTimeString(), icon: '🔔'
+    }))
     : donations.slice(0, 5).map((d: any) => ({
-        id: d.id, action: `New Donation added`, donor: d.donor, category: d.category,
-        time: new Date(d.timestamp).toLocaleDateString(), icon: '✨'
-      }));
+      id: d.id, action: `New Donation added`, donor: d.donor_username || d.donor, category: d.category,
+      time: new Date(d.timestamp).toLocaleDateString(), icon: '✨'
+    }));
 
-  // Inventory Snapshot derived from real Inventory items
+  // Inventory Snapshot
   const inventoryData = inventory.map((inv: any) => ({
     category: inv.category,
-    totalReceived: inv.quantity, 
-    distributed: inv.distributed || 0, 
+    totalReceived: inv.quantity,
+    distributed: inv.distributed || 0,
     color: catColors[inv.category] || '#9ca3af',
     icon: inv.category === 'Food' ? '🍲' : inv.category === 'Clothes' ? '👕' : '📦'
   }));
-
-  // Monthly trends (Mapped to show real counts on right side of chart)
-  const monthlyTrends = [
-    { month: 'Jan', Food: 0, Clothes: 0, Books: 0, Environment: 0 },
-    { month: 'Feb', Food: 0, Clothes: 0, Books: 0, Environment: 0 },
-    { month: 'Mar', Food: 0, Clothes: 0, Books: 0, Environment: 0 },
-    { month: 'Apr', Food: 0, Clothes: 0, Books: 0, Environment: 0 }
-  ];
-  
-  donations.forEach((d: any) => {
-    const cat = d.category;
-    if (monthlyTrends[3][cat as keyof typeof monthlyTrends[0]] !== undefined) {
-      (monthlyTrends[3] as any)[cat]++;
-    }
-  });
 
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
@@ -235,8 +232,8 @@ export default function Dashboard({ darkMode }: Props) {
             {recentActivity.length === 0 ? (
               <p className={`text-sm ${textSub}`}>No recent activity in the database.</p>
             ) : recentActivity.map((item: any) => (
-              <div 
-                key={item.id} 
+              <div
+                key={item.id}
                 className={`flex items-center gap-4 p-3 rounded-xl transition-colors cursor-pointer ${darkMode ? 'hover:bg-gray-700/50' : 'hover:bg-gray-50'}`}
                 onClick={() => {
                   // Redirect logic based on action type
@@ -316,13 +313,13 @@ export default function Dashboard({ darkMode }: Props) {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {donations.length === 0 ? (
-                 <tr>
-                   <td colSpan={6} className={`py-8 text-center ${textSub}`}>No donations stored yet.</td>
-                 </tr>
+                <tr>
+                  <td colSpan={6} className={`py-8 text-center ${textSub}`}>No donations stored yet.</td>
+                </tr>
               ) : donations.filter((d: any) => {
-                  const q = (searchQuery + ' ' + localSearch).trim().toLowerCase();
-                  return !q || d.donor.toLowerCase().includes(q) || d.id.toString().includes(q) || d.category.toLowerCase().includes(q);
-                }).slice(0, 5).map((d: any) => (
+                const q = (searchQuery + ' ' + localSearch).trim().toLowerCase();
+                return !q || d.donor.toLowerCase().includes(q) || d.id.toString().includes(q) || d.category.toLowerCase().includes(q);
+              }).slice(0, 5).map((d: any) => (
 
                 <tr key={d.id} className={`transition-colors ${darkMode ? 'divide-gray-700 hover:bg-gray-700/40' : 'hover:bg-gray-50'}`}>
                   <td className={`px-5 py-3.5 font-mono font-medium text-green-600`}>#{d.id}</td>

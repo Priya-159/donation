@@ -44,31 +44,62 @@ const categoryNav = [
   { id: 'clothes' as NavSection, label: 'Clothes', icon: Shirt, color: 'text-purple-500' },
   { id: 'books' as NavSection, label: 'Books', icon: BookOpen, color: 'text-blue-500' },
   { id: 'monetary' as NavSection, label: 'Monetary', icon: Coins, color: 'text-emerald-500' },
-  { id: 'environment' as NavSection, label: 'Environment', icon: Leaf, color: 'text-green-500' },
 ];
 
 export default function Sidebar({ active, onNavigate, collapsed, onToggleCollapse, darkMode, mobileOpen, onMobileClose }: SidebarProps) {
   const { searchQuery } = useSearch();
   const [counts, setCounts] = useState<Record<string, number>>({});
+  const [dynamicCategories, setDynamicCategories] = useState<any[]>([]);
 
   useEffect(() => {
-    const fetchCounts = async () => {
+    const fetchSidebarData = async () => {
       try {
-        const res = await fetchAPI('/api/inventory/items/');
-        const data = res.results || res || [];
+        const [invRes, msgRes, notifRes, catRes] = await Promise.all([
+          fetchAPI('/api/inventory/items/'),
+          fetchAPI('/api/chat/messages/').catch(() => []),
+          fetchAPI('/api/chat/notifications/').catch(() => []),
+          fetchAPI('/api/donations/categories/').catch(() => [])
+        ]);
+        
+        const invData = invRes.results || invRes || [];
+        const msgData = msgRes.results || msgRes || [];
+        const notifData = notifRes.results || notifRes || [];
+        const catData = catRes.results || catRes || [];
+        
+        // Filter active categories for sidebar
+        const activeCats = catData.filter((c: any) => c.is_active).map((c: any) => ({
+          id: c.name.toLowerCase() as NavSection,
+          label: c.name,
+          icon: HandHeart, // Default icon for new categories
+          emoji: c.icon || '🌱'
+        }));
+        setDynamicCategories(activeCats);
+
         const countMap: Record<string, number> = {};
-        data.forEach((item: any) => {
-          countMap[item.category.toLowerCase()] = item.quantity;
-        });
+        
+        // Unread messages count
+        const unreadMsgs = msgData.filter((m: any) => !m.read).length;
+        if (unreadMsgs > 0) countMap['messages'] = unreadMsgs;
+        
+        // Unread notifications count
+        const unreadNotifs = notifData.filter((n: any) => !n.read).length;
+        if (unreadNotifs > 0) countMap['notifications'] = unreadNotifs;
+
         setCounts(countMap);
       } catch (err) {
-        console.error("Sidebar count fetch error:", err);
+        console.error("Sidebar data fetch error:", err);
       }
     };
-    fetchCounts();
-    // Refresh every 30 seconds for live updates
-    const interval = setInterval(fetchCounts, 30000);
-    return () => clearInterval(interval);
+    fetchSidebarData();
+    const interval = setInterval(fetchSidebarData, 10000);
+
+    const handleRefresh = () => fetchSidebarData();
+    window.addEventListener('refresh-notifications', handleRefresh);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('refresh-notifications', handleRefresh);
+    };
   }, []);
 
   const bg = darkMode ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-200';
@@ -80,10 +111,10 @@ export default function Sidebar({ active, onNavigate, collapsed, onToggleCollaps
 
   const q = searchQuery.toLowerCase();
   const filteredMain = mainNav.filter(item => !q || item.label.toLowerCase().includes(q));
-  const filteredCat = categoryNav.filter(item => !q || item.label.toLowerCase().includes(q));
+  const filteredDynamic = dynamicCategories.filter(item => !q || item.label.toLowerCase().includes(q));
 
 
-  const NavItem = ({ item, iconColor }: { item: typeof mainNav[0]; iconColor?: string }) => {
+  const NavItem = ({ item, iconColor, emoji }: { item: any; iconColor?: string; emoji?: string }) => {
     const Icon = item.icon;
     const isActive = active === item.id;
     return (
@@ -93,17 +124,17 @@ export default function Sidebar({ active, onNavigate, collapsed, onToggleCollaps
         className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all duration-200 group relative
           ${isActive ? activeStyle : `${textBase} ${textHover}`}`}
       >
-        <Icon size={18} className={`flex-shrink-0 transition-colors ${isActive ? 'text-green-600' : iconColor || ''}`} />
+        <div className="relative">
+          {emoji ? (
+            <span className="text-lg w-[18px] h-[18px] flex items-center justify-center leading-none">{emoji}</span>
+          ) : (
+            <Icon size={18} className={`flex-shrink-0 transition-colors ${isActive ? 'text-green-600' : iconColor || ''}`} />
+          )}
+          {counts[item.id] > 0 && (
+            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-white dark:border-gray-900 animate-pulse" />
+          )}
+        </div>
         {!collapsed && <span className="truncate">{item.label}</span>}
-        {!collapsed && counts[item.id] !== undefined && (
-          <span className={`ml-auto px-2 py-0.5 rounded-full text-[10px] font-bold ${isActive ? 'bg-green-500 text-white' : (darkMode ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-500')}`}>
-            {counts[item.id]}
-          </span>
-        )}
-        {!collapsed && isActive && counts[item.id] === undefined && (
-          <span className="ml-auto w-1.5 h-1.5 rounded-full bg-green-500" />
-        )}
-
         {collapsed && (
           <div className={`absolute left-full ml-3 px-2 py-1 text-xs rounded-lg shadow-lg opacity-0 group-hover:opacity-100 pointer-events-none z-50 whitespace-nowrap transition-opacity
             ${darkMode ? 'bg-gray-800 text-white' : 'bg-gray-900 text-white'}`}>
@@ -146,14 +177,14 @@ export default function Sidebar({ active, onNavigate, collapsed, onToggleCollaps
         {filteredMain.map(item => <NavItem key={item.id} item={item} />)}
 
         {/* Categories */}
-        {filteredCat.length > 0 && (
+        {filteredDynamic.length > 0 && (
           <div className={`border-t ${divider} mt-4 pt-4`}>
             {!collapsed && <p className={`text-xs font-semibold uppercase tracking-wider px-2 mb-2 ${labelColor}`}>Categories</p>}
-            {filteredCat.map(item => <NavItem key={item.id} item={item} iconColor={item.color} />)}
+            {filteredDynamic.map(item => <NavItem key={item.id} item={item} emoji={item.emoji} />)}
           </div>
         )}
         
-        {searchQuery && filteredMain.length === 0 && filteredCat.length === 0 && (
+        {searchQuery && filteredMain.length === 0 && filteredDynamic.length === 0 && (
           <p className={`text-xs text-center py-4 ${labelColor}`}>No matching items</p>
         )}
 

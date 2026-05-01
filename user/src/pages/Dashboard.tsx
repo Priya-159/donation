@@ -5,7 +5,7 @@ import { User, MapPin, Clock, Download, Bell, HandHeart, TreePine, Utensils, Tre
 import { fetchAPI } from '../utils/api';
 
 export default function Dashboard() {
-  const { dark, t, user: appUser, setUser: setAppUser } = useApp();
+  const { dark, t, user: appUser, setUser: setAppUser, markRead: globalMarkRead, setUnreadMessagesCount } = useApp();
   const location = useLocation();
   const [activeTab, setActiveTab] = useState<'history' | 'profile' | 'addresses' | 'messages'>('history');
   const [showDonationToast, setShowDonationToast] = useState(false);
@@ -95,6 +95,21 @@ export default function Dashboard() {
     loadDashboardData();
   }, []);
 
+  // Mark messages as read when viewing the messages tab
+  useEffect(() => {
+    if (activeTab === 'messages' && messages.length > 0) {
+      const unreadMsgs = messages.filter(m => m.sender_username === 'admin' && !m.read);
+      if (unreadMsgs.length > 0) {
+        Promise.all(unreadMsgs.map(m => 
+          fetchAPI(`/api/chat/messages/${m.id}/`, { method: 'PATCH', body: JSON.stringify({ read: true }) })
+        )).then(() => {
+          setMessages(prev => prev.map(m => ({ ...m, read: true })));
+          setUnreadMessagesCount(0); // Sync global state
+        }).catch(err => console.error("Mark read error", err));
+      }
+    }
+  }, [activeTab, messages.length]);
+
   const handleProfileSave = async () => {
     setSavingProfile(true);
     setProfileError('');
@@ -148,7 +163,7 @@ export default function Dashboard() {
 
   const handleMarkRead = async (id: number) => {
     try {
-      await fetchAPI(`/api/chat/notifications/${id}/`, { method: 'PATCH', body: JSON.stringify({ read: true }) });
+      await globalMarkRead(id); // Use global function which also updates DB
       setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
     } catch (err) {
       console.error("Failed to mark read", err);
@@ -160,6 +175,7 @@ export default function Dashboard() {
     { key: 'profile' as const, label: t.dashboard.profile, icon: User },
     { key: 'addresses' as const, label: t.dashboard.addresses, icon: MapPin },
     { key: 'messages' as const, label: 'Messages', icon: Mail },
+    { key: 'notifications' as const, label: t.dashboard.notifications, icon: Bell },
   ];
 
   // Derived Stats
@@ -422,6 +438,43 @@ export default function Dashboard() {
                     >
                       {sendingMsg ? <Loader className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                     </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Notifications Tab */}
+              {activeTab === 'notifications' && (
+                <div className="animate-fade-in">
+                  <div className="flex items-center justify-between mb-6">
+                    <h3 className={`text-lg font-bold ${dark ? 'text-white' : 'text-gray-900'}`}>{t.dashboard.notifications}</h3>
+                    {notifications.some(n => !n.read) && (
+                      <button 
+                        onClick={() => Promise.all(notifications.filter(n => !n.read).map(n => handleMarkRead(n.id)))}
+                        className="text-xs font-semibold text-primary-500 hover:text-primary-600 transition-colors"
+                      >
+                        Mark all as read
+                      </button>
+                    )}
+                  </div>
+                  <div className="space-y-3">
+                    {notifications.length === 0 ? (
+                      <p className={`text-sm ${dark ? 'text-gray-400' : 'text-gray-500'}`}>No notifications yet.</p>
+                    ) : notifications.map(n => (
+                      <div key={n.id} className={`flex items-start gap-4 p-4 rounded-2xl border-2 transition-all ${!n.read ? (dark ? 'bg-primary-900/10 border-primary-500/30' : 'bg-primary-50 border-primary-100') : (dark ? 'bg-slate-700/30 border-transparent' : 'bg-gray-50 border-transparent')}`}>
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${!n.read ? 'bg-primary-500 text-white' : dark ? 'bg-slate-600 text-gray-400' : 'bg-gray-200 text-gray-400'}`}>
+                          <Bell className="w-4 h-4" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-sm ${!n.read ? 'font-bold' : 'font-medium'} ${dark ? 'text-white' : 'text-gray-900'}`}>{n.text}</p>
+                          <p className={`text-[10px] mt-1 ${dark ? 'text-gray-500' : 'text-gray-400'}`}>{n.time}</p>
+                        </div>
+                        {!n.read && (
+                          <button onClick={() => handleMarkRead(n.id)} className="p-1.5 rounded-lg hover:bg-primary-100 text-primary-500 transition-colors" title="Mark as read">
+                            <CheckCircle className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}

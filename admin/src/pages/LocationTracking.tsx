@@ -81,11 +81,11 @@ export default function LocationTracking({ darkMode }: Props) {
   return (
     <div className="space-y-6">
       {/* City Summary */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-4">
+      <div className="flex overflow-x-auto gap-4 pb-4 snap-x">
         {citySummary.length === 0 ? (
-          <div className={`col-span-full text-center py-4 ${textSub}`}>No locations recorded yet</div>
+          <div className={`w-full text-center py-4 ${textSub}`}>No locations recorded yet</div>
         ) : citySummary.map(([city, count]) => (
-          <div key={city} className={`rounded-2xl border p-4 shadow-sm ${card} flex flex-col items-center text-center hover:shadow-md transition-shadow`}>
+          <div key={city} className={`min-w-[140px] flex-shrink-0 rounded-2xl border p-4 shadow-sm ${card} flex flex-col items-center text-center hover:shadow-md transition-shadow snap-start`}>
             <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-2 ${darkMode ? 'bg-gray-700' : 'bg-green-50'}`}>
               <MapPin size={18} className="text-green-500" />
             </div>

@@ -41,6 +41,19 @@ export default function Notifications({ darkMode }: Props) {
     }
   };
 
+  const handleNotificationClick = (n: any) => {
+    if (!n.read) markAsRead(n.id);
+    
+    const text = (n.title || n.message || "").toLowerCase();
+    let target = 'dashboard';
+    
+    if (text.includes('volunteer')) target = 'volunteers';
+    else if (text.includes('donation') || text.includes('pickup')) target = 'donations';
+    else if (text.includes('message')) target = 'messages';
+    
+    window.dispatchEvent(new CustomEvent('navigate', { detail: target }));
+  };
+
   const deleteNotification = async (id: number) => {
     if (!confirm("Are you sure you want to delete this notification?")) return;
     try {
@@ -144,7 +157,8 @@ export default function Notifications({ darkMode }: Props) {
             filtered.map(n => (
               <div 
                 key={n.id} 
-                className={`flex items-start gap-4 p-4 rounded-2xl border transition-all ${itemHover} ${!n.read ? `${unreadBg} border-green-500/20` : (darkMode ? 'border-gray-700' : 'border-gray-100')}`}
+                onClick={() => handleNotificationClick(n)}
+                className={`flex items-start gap-4 p-4 rounded-2xl border cursor-pointer transition-all ${itemHover} ${!n.read ? `${unreadBg} border-green-500/20` : (darkMode ? 'border-gray-700' : 'border-gray-100')}`}
               >
                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0 ${!n.read ? 'bg-green-500 text-white shadow-lg shadow-green-500/20' : (darkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-100 text-gray-500')}`}>
                   {n.title.toLowerCase().includes('message') ? '💬' : 

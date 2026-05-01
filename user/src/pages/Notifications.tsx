@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { Bell, CheckCheck, Loader, Info, Package, Leaf, Star, UserCheck } from 'lucide-react';
 import { fetchAPI } from '../utils/api';
+import { useNavigate } from 'react-router-dom';
 
 const getIcon = (text: string) => {
   if (text?.toLowerCase().includes('donation') || text?.toLowerCase().includes('pickup')) return Package;
@@ -14,9 +15,27 @@ const getIcon = (text: string) => {
 export default function Notifications() {
   const { dark, notifications, markRead, setNotifications } = useApp();
   const [markingAll, setMarkingAll] = useState(false);
+  const navigate = useNavigate();
 
   const unread = notifications.filter(n => !n.read);
   const read = notifications.filter(n => n.read);
+
+  const handleNotificationClick = (n: any) => {
+    if (!n.read) {
+      markRead(n.id);
+    }
+    const text = (n.text || n.title || n.message || "").toLowerCase();
+    
+    if (text.includes('donation') || text.includes('pickup')) {
+      navigate('/dashboard');
+    } else if (text.includes('volunteer')) {
+      navigate('/volunteer');
+    } else if (text.includes('message')) {
+      navigate('/dashboard');
+    } else {
+      navigate('/dashboard');
+    }
+  };
 
   const handleMarkAllRead = async () => {
     setMarkingAll(true);
@@ -30,7 +49,7 @@ export default function Notifications() {
           }).catch(() => {})
         )
       );
-      setNotifications(notifications.map(n => ({ ...n, read: true })));
+      if ((window as any).refreshAppData) (window as any).refreshAppData();
     } catch (err) {
       console.error('Failed to mark all as read', err);
     } finally {
@@ -90,7 +109,7 @@ export default function Notifications() {
                 return (
                   <div
                     key={n.id}
-                    onClick={() => markRead(n.id)}
+                    onClick={() => handleNotificationClick(n)}
                     className={`flex items-start gap-4 p-4 rounded-2xl cursor-pointer transition-all border-l-4 border-primary-500 ${
                       dark ? 'bg-primary-900/20 hover:bg-primary-900/30' : 'bg-primary-50/70 hover:bg-primary-50'
                     }`}
@@ -122,7 +141,8 @@ export default function Notifications() {
                 return (
                   <div
                     key={n.id}
-                    className={`flex items-start gap-4 p-4 transition-colors ${
+                    onClick={() => handleNotificationClick(n)}
+                    className={`flex items-start gap-4 p-4 cursor-pointer transition-colors ${
                       i < read.length - 1 ? (dark ? 'border-b border-slate-700' : 'border-b border-gray-50') : ''
                     } ${dark ? 'hover:bg-slate-700/40' : 'hover:bg-gray-50'}`}
                   >

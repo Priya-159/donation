@@ -18,14 +18,12 @@ export default function Volunteers({ darkMode }: Props) {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [appsRes, usersRes] = await Promise.all([
-        fetchAPI('/api/users/volunteer/admin/list/'),
-        fetchAPI('/api/users/list/')
-      ]);
-      setApplications(appsRes.results || appsRes || []);
+      const appsRes = await fetchAPI('/api/users/volunteer/admin/list/');
+      const allApps = appsRes.results || appsRes || [];
+      setApplications(allApps);
       
-      const volunteers = (usersRes.results || usersRes || []).filter((u: any) => u.role === 'VOLUNTEER');
-      setActiveVolunteers(volunteers);
+      const approved = allApps.filter((v: any) => v.status === 'Approved');
+      setActiveVolunteers(approved);
     } catch (err) {
       console.error("Failed to fetch volunteer data", err);
     } finally {
@@ -48,7 +46,7 @@ export default function Volunteers({ darkMode }: Props) {
       await fetchAPI('/api/chat/notifications/', {
         method: 'POST',
         body: JSON.stringify({
-          user: app.user_id, // Assuming backend provides user_id in application object
+          user: app.user, // The user ID is in the application.user field
           title: status === 'Approved' ? "Volunteer Application Approved! 🎉" : "Volunteer Application Status",
           message: status === 'Approved' 
             ? "Congratulations! Your application to become a volunteer has been approved. Welcome to the team!" 
@@ -57,11 +55,7 @@ export default function Volunteers({ darkMode }: Props) {
         })
       }).catch(err => console.warn("Failed to send notification:", err));
 
-      if (status === 'Approved') {
-        fetchData();
-      } else {
-        setApplications(prev => prev.map(v => v.id === app.id ? { ...v, status } : v));
-      }
+      fetchData(); // Always refresh to sync both lists
     } catch (err) {
       console.error("Failed to update status", err);
     }
@@ -85,7 +79,7 @@ export default function Volunteers({ darkMode }: Props) {
 
 
   const filteredActive = activeVolunteers.filter(v => {
-    const matchesSearch = !combinedSearch || v.username.toLowerCase().includes(combinedSearch) || v.email.toLowerCase().includes(combinedSearch);
+    const matchesSearch = !combinedSearch || v.name.toLowerCase().includes(combinedSearch) || v.email.toLowerCase().includes(combinedSearch);
     return matchesSearch;
   });
 
@@ -188,10 +182,10 @@ export default function Volunteers({ darkMode }: Props) {
               filteredActive.map(v => (
                 <div key={v.id} className={`rounded-2xl border ${darkMode ? 'border-gray-700 bg-gray-700/20' : 'border-gray-100 bg-gray-50/50'} p-5 transition-all hover:shadow-md flex items-center gap-4`}>
                   <div className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-400 to-indigo-600 flex items-center justify-center text-white font-bold text-xl shadow-md flex-shrink-0">
-                    {v.username.charAt(0).toUpperCase()}
+                    {v.name.charAt(0).toUpperCase()}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h3 className={`font-bold text-base truncate ${textMain}`}>{v.username}</h3>
+                    <h3 className={`font-bold text-base truncate ${textMain}`}>{v.name}</h3>
                     <p className={`text-sm ${textSub} truncate`}>{v.email}</p>
                     <div className="flex items-center gap-3 mt-2">
                        <span className={`text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-bold uppercase`}>Active Volunteer</span>

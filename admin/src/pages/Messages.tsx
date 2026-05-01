@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Paperclip, Search, Info, Heart, X, Loader, Check, CheckCheck } from 'lucide-react';
+import { Send, Paperclip, Search, Info, Heart, X, Loader, Check, CheckCheck, EyeOff } from 'lucide-react';
 
 import { fetchAPI } from '../utils/api';
 import { useSearch } from '../context/SearchContext';
@@ -61,6 +61,7 @@ export default function Messages({ darkMode }: Props) {
               unread: 0,
               lastMessage: '',
               lastTime: '',
+              lastTimestamp: 0,
             };
           }
           
@@ -72,8 +73,12 @@ export default function Messages({ darkMode }: Props) {
             timestamp: new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
           });
           
-          conversationsMap[otherUser].lastMessage = m.message_body;
-          conversationsMap[otherUser].lastTime = new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          const msgTime = new Date(m.timestamp).getTime();
+          if (msgTime > conversationsMap[otherUser].lastTimestamp) {
+            conversationsMap[otherUser].lastMessage = m.message_body;
+            conversationsMap[otherUser].lastTime = new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            conversationsMap[otherUser].lastTimestamp = msgTime;
+          }
           if (!m.read && !isSentByMe) conversationsMap[otherUser].unread += 1;
         });
 
@@ -88,16 +93,13 @@ export default function Messages({ darkMode }: Props) {
                unread: 0,
                lastMessage: 'Start a conversation...',
                lastTime: '',
+               lastTimestamp: 0,
              };
            }
         });
 
         const formattedConvs = Object.values(conversationsMap);
         setConvList(formattedConvs);
-        
-        if (formattedConvs.length > 0 && !activeId) {
-          setActiveId(formattedConvs[0].id);
-        }
       } catch (err) {
         console.error("Failed to load messages", err);
       } finally {
@@ -105,6 +107,8 @@ export default function Messages({ darkMode }: Props) {
       }
     };
     fetchChat();
+    const interval = setInterval(fetchChat, 5000);
+    return () => clearInterval(interval);
   }, []);
 
   const activeConv = convList.find(c => c.id === activeId);
@@ -178,6 +182,8 @@ export default function Messages({ darkMode }: Props) {
           fetchAPI(`/api/chat/messages/${m.id}/`, {
             method: 'PATCH',
             body: JSON.stringify({ read: true })
+          }).then(() => {
+            window.dispatchEvent(new CustomEvent('refresh-notifications'));
           }).catch(() => {}) // Silently ignore individual failures
         )
       );
@@ -185,7 +191,7 @@ export default function Messages({ darkMode }: Props) {
   };
 
   const combinedSearch = (searchQuery + ' ' + localSearch).trim().toLowerCase();
-  const filtered = convList.filter(c => !combinedSearch || c.userName.toLowerCase().includes(combinedSearch));
+  const filtered = convList.filter(c => !combinedSearch || c.userName.toLowerCase().includes(combinedSearch)).sort((a, b) => b.lastTimestamp - a.lastTimestamp);
 
 
   const avatarColors = [
@@ -232,16 +238,16 @@ export default function Messages({ darkMode }: Props) {
                   <p className={`text-sm font-semibold truncate ${textMain}`}>{conv.userName}</p>
                   <span className={`text-xs flex-shrink-0 ml-2 ${textSub}`}>{conv.lastTime}</span>
                 </div>
-                <p className={`text-xs truncate ${textSub}`}>{conv.lastMessage}</p>
+                <div className="flex items-center justify-between">
+                  <p className={`text-xs truncate ${textSub} flex-1`}>{conv.lastMessage}</p>
+                  {conv.unread > 0 && (
+                    <EyeOff size={14} className="text-green-500 ml-2 flex-shrink-0 animate-pulse" />
+                  )}
+                </div>
                 {conv.donationRef && (
                   <span className="text-xs text-green-500 font-mono">{conv.donationRef}</span>
                 )}
               </div>
-              {conv.unread > 0 && (
-                <span className="w-5 h-5 bg-green-500 text-white text-xs rounded-full flex items-center justify-center font-bold flex-shrink-0 mt-0.5">
-                  {conv.unread}
-                </span>
-              )}
             </button>
           ))}
         </div>

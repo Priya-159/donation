@@ -46,8 +46,11 @@ interface AppContextType {
   user: { name: string; email: string; phone: string; city: string; role: string };
   setUser: (u: { name: string; email: string; phone: string; city: string; role: string }) => void;
   notifications: { id: number; text: string; time: string; read: boolean; message?: string; timestamp?: string }[];
+  unreadMessagesCount: number;
+  setUnreadMessagesCount: (n: number) => void;
   markRead: (id: number) => void;
   setNotifications: (n: any[]) => void;
+  refreshData: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
@@ -59,17 +62,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [isLoggedIn, setIsLoggedIn] = useState(() => !!localStorage.getItem('access_token'));
   const [user, setUser] = useState({ name: '', email: '', phone: '', city: '', role: '' });
   const [notifications, setNotifications] = useState<any[]>([]);
+  const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
 
   const toggleDark = () => setDark(p => !p);
 
   const markRead = async (id: number) => {
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
     try {
       if (localStorage.getItem('access_token')) {
         await fetchAPI(`/api/chat/notifications/${id}/`, {
           method: 'PATCH',
           body: JSON.stringify({ read: true })
         });
+        if ((window as any).refreshAppData) (window as any).refreshAppData();
       }
     } catch (err) { console.error('Failed to mark read', err); }
   };
@@ -79,6 +83,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem('refresh_token');
     setIsLoggedIn(false);
     setNotifications([]);
+    setUnreadMessagesCount(0);
     setUser({ name: '', email: '', phone: '', city: '', role: '' });
   };
 
@@ -100,21 +105,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
       .catch(() => { /* token may be mid-refresh; poller will retry */ });
   }, [isLoggedIn]);
 
-  // Fetch live notifications only when the user is authenticated
+  // Fetch live notifications and messages only when the user is authenticated
   useEffect(() => {
     const token = localStorage.getItem('access_token');
-    // Don't poll at all if there's no token — avoids 401 spam on the server
     if (!token) {
       setNotifications([]);
+      setUnreadMessagesCount(0);
       return;
     }
 
-    const fetchNotifs = async () => {
-      if (!localStorage.getItem('access_token')) { setNotifications([]); return; }
+    const fetchData = async () => {
+      if (!localStorage.getItem('access_token')) { 
+        setNotifications([]); 
+        setUnreadMessagesCount(0);
+        return; 
+      }
       try {
-        // Use fetchAPI so expired tokens are silently auto-refreshed
-        const data = await fetchAPI('/api/chat/notifications/');
-        const notifs = (data.results || data).map((n: any) => ({
+        // Fetch Notifications
+        const notifData = await fetchAPI('/api/chat/notifications/');
+        const notifs = (notifData.results || notifData).map((n: any) => ({
           id: n.id,
           text: n.message || n.text || '',
           time: n.timestamp ? new Date(n.timestamp).toLocaleString() : '',
@@ -123,11 +132,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
           timestamp: n.timestamp,
         }));
         setNotifications(notifs);
-      } catch (err) { console.error('Failed to load notifications', err); }
+
+        // Fetch Messages to count unread ones from admin
+        const msgData = await fetchAPI('/api/chat/messages/');
+        const msgs = msgData.results || msgData || [];
+        const unreadMsgs = msgs.filter((m: any) => m.sender_username === 'admin' && !m.read).length;
+        setUnreadMessagesCount(unreadMsgs);
+
+      } catch (err) { console.error('Failed to load live data', err); }
     };
 
-    fetchNotifs();
-    const interval = setInterval(fetchNotifs, 30000); // poll every 30s
+    (window as any).refreshAppData = fetchData; // Expose for manual refresh
+    fetchData();
+    const interval = setInterval(fetchData, 30000); // poll every 30s
     return () => clearInterval(interval);
   }, [isLoggedIn]);
 
@@ -138,7 +155,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const t = translations[lang];
 
   return (
-    <AppContext.Provider value={{ dark, toggleDark, lang, setLang, t, isLoggedIn, setIsLoggedIn, logout, user, setUser, notifications, markRead, setNotifications }}>
+    <AppContext.Provider value={{ 
+      dark, toggleDark, lang, setLang, t, isLoggedIn, setIsLoggedIn, logout, user, setUser, 
+      notifications, unreadMessagesCount, setUnreadMessagesCount, markRead, setNotifications,
+      refreshData: (window as any).refreshAppData
+    }}>
       {children}
     </AppContext.Provider>
   );

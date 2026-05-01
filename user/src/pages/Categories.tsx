@@ -1,17 +1,30 @@
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
-import { Utensils, Shirt, BookOpen, Banknote, Sprout, ArrowRight, Heart } from 'lucide-react';
+import { Utensils, Shirt, BookOpen, Banknote, Sprout, ArrowRight, Heart, Package } from 'lucide-react';
+import { fetchAPI } from '../utils/api';
 
 export default function Categories() {
   const { dark, t } = useApp();
+  const [categories, setCategories] = useState<any[]>([]);
 
-  const categories = [
-    { icon: Utensils, title: t.categories.food, desc: t.categories.foodDesc, impact: t.categories.foodImpact, color: 'from-orange-400 to-red-500', bgLight: 'bg-orange-50', bgDark: 'bg-orange-900/20', emoji: '🍲', stats: '5,000+ meals/month' },
-    { icon: Shirt, title: t.categories.clothes, desc: t.categories.clothesDesc, impact: t.categories.clothesImpact, color: 'from-blue-400 to-indigo-500', bgLight: 'bg-blue-50', bgDark: 'bg-blue-900/20', emoji: '👕', stats: '2,000+ items/month' },
-    { icon: BookOpen, title: t.categories.books, desc: t.categories.booksDesc, impact: t.categories.booksImpact, color: 'from-purple-400 to-pink-500', bgLight: 'bg-purple-50', bgDark: 'bg-purple-900/20', emoji: '📚', stats: '500+ students/month' },
-    { icon: Banknote, title: t.categories.money, desc: t.categories.moneyDesc, impact: t.categories.moneyImpact, color: 'from-green-400 to-emerald-500', bgLight: 'bg-green-50', bgDark: 'bg-green-900/20', emoji: '💰', stats: '₹10L+ raised' },
-    { icon: Sprout, title: t.categories.trees, desc: t.categories.treesDesc, impact: t.categories.treesImpact, color: 'from-teal-400 to-cyan-500', bgLight: 'bg-teal-50', bgDark: 'bg-teal-900/20', emoji: '🌱', stats: '12,000+ trees planted' },
-  ];
+  useEffect(() => {
+    fetchAPI('/api/donations/categories/')
+      .then(data => {
+        const cats = data.results || data || [];
+        setCategories(cats.map((c: any) => ({
+          icon: c.name === 'Food' ? Utensils : c.name === 'Clothes' ? Shirt : c.name === 'Books' ? BookOpen : c.name === 'Monetary' ? Banknote : c.name === 'Environment' ? Sprout : Package,
+          title: c.name,
+          desc: c.description || t.categories.foodDesc, // fallback
+          impact: c.name === 'Food' ? t.categories.foodImpact : c.name === 'Clothes' ? t.categories.clothesImpact : c.name === 'Books' ? t.categories.booksImpact : c.name === 'Monetary' ? t.categories.moneyImpact : t.categories.treesImpact,
+          color: c.name === 'Food' ? 'from-orange-400 to-red-500' : c.name === 'Clothes' ? 'from-blue-400 to-indigo-500' : c.name === 'Books' ? 'from-purple-400 to-pink-500' : c.name === 'Monetary' ? 'from-green-400 to-emerald-500' : 'from-teal-400 to-cyan-500',
+          bgLight: 'bg-primary-50',
+          bgDark: 'bg-primary-900/20',
+          emoji: c.icon || '📦',
+          stats: 'Join us today'
+        })));
+      });
+  }, [t]);
 
   return (
     <div className={`min-h-screen pt-24 pb-16 ${dark ? 'bg-slate-900' : 'bg-gradient-to-b from-primary-50/30 to-white'}`}>

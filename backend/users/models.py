@@ -47,8 +47,12 @@ def create_volunteer_notification(sender, instance, created, **kwargs):
         from django.db.models import Q
         admins = User.objects.filter(Q(role='ADMIN') | Q(is_superuser=True))
         for admin in admins:
-            Notification.objects.create(
-                user=admin,
-                title="New Volunteer Application",
-                message=f"{instance.name} applied for {instance.volunteering_role} in {instance.city}"
-            )
+            from chat.models import NotificationPreference
+            pref, _ = NotificationPreference.objects.get_or_create(user=admin)
+            # We'll use new_donation preference for volunteer apps too or add a new field
+            if pref.new_donation:
+                Notification.objects.create(
+                    user=admin,
+                    title="New Volunteer Application",
+                    message=f"{instance.name} applied for {instance.volunteering_role} in {instance.city}"
+                )

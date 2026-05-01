@@ -1,5 +1,10 @@
 from rest_framework import serializers
-from .models import Donation, PickupDetails
+from .models import Donation, PickupDetails, DonationCategory
+
+class DonationCategorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DonationCategory
+        fields = '__all__'
 
 class PickupDetailsSerializer(serializers.ModelSerializer):
     # Make address fields optional so partial submissions don't 400

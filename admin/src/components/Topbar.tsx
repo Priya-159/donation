@@ -48,7 +48,14 @@ export default function Topbar({ darkMode, onToggleDark, onMobileMenuOpen, pageT
     
     // Optional: Poll for notifications every 30 seconds
     const interval = setInterval(fetchNotifications, 30000);
-    return () => clearInterval(interval);
+    
+    const handleRefresh = () => fetchNotifications();
+    window.addEventListener('refresh-notifications', handleRefresh);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('refresh-notifications', handleRefresh);
+    };
   }, []);
 
   // Handle Global Search
@@ -108,6 +115,28 @@ export default function Topbar({ darkMode, onToggleDark, onMobileMenuOpen, pageT
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleNotificationClick = async (n: any) => {
+    setShowNotif(false);
+    if (!n.read) {
+      try {
+        await fetchAPI(`/api/chat/notifications/${n.id}/`, {
+          method: 'PATCH',
+          body: JSON.stringify({ read: true })
+        });
+        setNotifications(prev => prev.map(item => item.id === n.id ? { ...item, read: true } : item));
+      } catch (err) {}
+    }
+    
+    const text = (n.title || n.message || "").toLowerCase();
+    let target = 'dashboard';
+    
+    if (text.includes('volunteer')) target = 'volunteers';
+    else if (text.includes('donation') || text.includes('pickup')) target = 'donations';
+    else if (text.includes('message')) target = 'messages';
+    
+    window.dispatchEvent(new CustomEvent('navigate', { detail: target }));
   };
 
   return (
@@ -195,9 +224,7 @@ export default function Topbar({ darkMode, onToggleDark, onMobileMenuOpen, pageT
           >
             <Bell size={18} />
             {unread > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-bold">
-                {unread}
-              </span>
+              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-green-500 rounded-full border-2 border-white dark:border-gray-900 animate-pulse" />
             )}
           </button>
 
@@ -215,7 +242,7 @@ export default function Topbar({ darkMode, onToggleDark, onMobileMenuOpen, pageT
                       You have no new notifications.
                     </div>
                   ) : notifications.map(n => (
-                    <div key={n.id} className={`flex items-start gap-3 px-4 py-3 ${notifHover} transition-colors border-b ${darkMode ? 'border-gray-700/50' : 'border-gray-50'} ${!n.read ? (darkMode ? 'bg-green-900/10' : 'bg-green-50/50') : ''}`}>
+                    <div key={n.id} onClick={() => handleNotificationClick(n)} className={`flex items-start gap-3 px-4 py-3 ${notifHover} cursor-pointer transition-colors border-b ${darkMode ? 'border-gray-700/50' : 'border-gray-50'} ${!n.read ? (darkMode ? 'bg-green-900/10' : 'bg-green-50/50') : ''}`}>
                       <span className="text-lg flex-shrink-0 mt-0.5">{typeIcon[n.type] || '🔔'}</span>
                       <div className="flex-1 min-w-0">
                         <p className={`text-sm font-semibold ${notifItemText}`}>{n.title}</p>

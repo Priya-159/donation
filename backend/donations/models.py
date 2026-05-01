@@ -1,6 +1,19 @@
 from django.db import models
 from django.conf import settings
 
+class DonationCategory(models.Model):
+    name = models.CharField(max_length=50, unique=True)
+    icon = models.CharField(max_length=10, blank=True, null=True, help_text="Emoji or icon name")
+    is_active = models.BooleanField(default=True)
+    description = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        verbose_name_plural = "Donation Categories"
+
 class Donation(models.Model):
     CATEGORY_CHOICES = (
         ('Food', 'Food'),
@@ -25,6 +38,7 @@ class Donation(models.Model):
     timestamp = models.DateTimeField(auto_now_add=True)
     
     class Meta:
+        ordering = ['-timestamp']
         indexes = [
             models.Index(fields=['status']),
             models.Index(fields=['category']),
@@ -73,11 +87,14 @@ def create_donation_notification(sender, instance, created, **kwargs):
         from django.db.models import Q
         admins = User.objects.filter(Q(role='ADMIN') | Q(is_superuser=True))
         for admin in admins:
-            Notification.objects.create(
-                user=admin,
-                title="New Donation Received",
-                message=f"{instance.donor.username} donated {instance.quantity_description} ({instance.category})"
-            )
+            from chat.models import NotificationPreference
+            pref, _ = NotificationPreference.objects.get_or_create(user=admin)
+            if pref.new_donation:
+                Notification.objects.create(
+                    user=admin,
+                    title="New Donation Received",
+                    message=f"{instance.donor.username} donated {instance.quantity_description} ({instance.category})"
+                )
 
 @receiver(post_save, sender=PickupDetails)
 def create_pickup_notification(sender, instance, created, **kwargs):
@@ -98,8 +115,11 @@ def create_pickup_notification(sender, instance, created, **kwargs):
                     message__contains=f"donation #{instance.donation.id}"
                 ).exists()
                 if not exists:
-                    Notification.objects.create(
-                        user=admin,
-                        title="Upcoming Pickup Alert",
-                        message=f"Pickup scheduled for donation #{instance.donation.id} on {instance.scheduled_date} at {instance.scheduled_time}. This is scheduled for this week!"
-                    )
+                    from chat.models import NotificationPreference
+                    pref, _ = NotificationPreference.objects.get_or_create(user=admin)
+                    if pref.pickup_updates:
+                        Notification.objects.create(
+                            user=admin,
+                            title="Upcoming Pickup Alert",
+                            message=f"Pickup scheduled for donation #{instance.donation.id} on {instance.scheduled_date} at {instance.scheduled_time}. This is scheduled for this week!"
+                        )

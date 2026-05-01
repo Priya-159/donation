@@ -5,10 +5,19 @@ from rest_framework.response import Response
 from django.contrib.auth import get_user_model
 from django_filters.rest_framework import DjangoFilterBackend
 from django.http import FileResponse
-from .models import Donation, PickupDetails
-from .serializers import DonationSerializer, PickupDetailsSerializer
-from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import letter
+from .models import Donation, PickupDetails, DonationCategory
+from .serializers import DonationSerializer, PickupDetailsSerializer, DonationCategorySerializer
+
+class DonationCategoryViewSet(viewsets.ModelViewSet):
+    queryset = DonationCategory.objects.all()
+    serializer_class = DonationCategorySerializer
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+
+    def get_queryset(self):
+        # Admin can see all, others only see active ones
+        if self.request.user.is_authenticated and (self.request.user.is_staff or getattr(self.request.user, 'role', '') == 'ADMIN'):
+            return DonationCategory.objects.all()
+        return DonationCategory.objects.filter(is_active=True)
 
 class IsAdminOrReadOnly(permissions.BasePermission):
     def has_permission(self, request, view):
@@ -54,6 +63,39 @@ class DonationViewSet(viewsets.ModelViewSet):
                 'education': InventoryItem.objects.filter(category='Books').count() * 20,
                 'green': InventoryItem.objects.filter(category='Environment').count() * 20,
             }
+        })
+
+    @action(detail=False, methods=['get'])
+    def dashboard_stats(self, request):
+        User = get_user_model()
+        from inventory.models import InventoryItem
+        from django.db.models import Sum
+        
+        monetary_sum = Donation.objects.filter(category='Monetary').aggregate(total=Sum('quantity'))['total'] or 0
+        total_donations = Donation.objects.count()
+        from users.models import VolunteerApplication
+        active_volunteers = VolunteerApplication.objects.filter(status='Approved').count()
+        
+        food_item = InventoryItem.objects.filter(category='Food').first()
+        food_stats = {
+            'received': food_item.quantity if food_item else 0,
+            'distributed': food_item.distributed if food_item else 0,
+            'remaining': (food_item.quantity - food_item.distributed) if food_item else 0,
+            'active': Donation.objects.filter(category='Food', status__in=['Pending', 'Scheduled']).count()
+        }
+        
+        # Calculate distribution rate
+        total_received = InventoryItem.objects.aggregate(total=Sum('quantity'))['total'] or 1
+        total_distributed = InventoryItem.objects.aggregate(total=Sum('distributed'))['total'] or 0
+        distribution_rate = (total_distributed / total_received) * 100
+        
+        return Response({
+            'monetary_total': monetary_sum,
+            'total_donations': total_donations,
+            'active_volunteers': active_volunteers,
+            'food_stats': food_stats,
+            'distribution_rate': distribution_rate,
+            'recent_monetary': Donation.objects.filter(category='Monetary').order_by('-timestamp')[:5].values('id', 'donor__username', 'quantity', 'timestamp')
         })
 
     def perform_create(self, serializer):

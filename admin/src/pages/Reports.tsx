@@ -12,19 +12,22 @@ export default function Reports({ darkMode }: Props) {
   const [donations, setDonations] = useState<any[]>([]);
   const [inventory, setInventory] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
+  const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [donsRes, invRes, usersRes] = await Promise.all([
+        const [donsRes, invRes, usersRes, statsRes] = await Promise.all([
           fetchAPI('/api/donations/').catch(() => []),
           fetchAPI('/api/inventory/items/').catch(() => []),
-          fetchAPI('/api/users/list/').catch(() => [])
+          fetchAPI('/api/users/list/').catch(() => []),
+          fetchAPI('/api/donations/dashboard_stats/').catch(() => null)
         ]);
         setDonations(donsRes.results || donsRes || []);
         setInventory(invRes.results || invRes || []);
         setUsers(usersRes.results || usersRes || []);
+        setStats(statsRes);
       } catch (err) {
         console.error("Analytics fetch error:", err);
       } finally {
@@ -44,20 +47,17 @@ export default function Reports({ darkMode }: Props) {
   const catIcons: any = { Food: '🍲', Clothes: '👕', Books: '📚', Monetary: '💰', Environment: '🌱' };
 
   // Calculate KPIs
-  const totalDonationsThisMonth = donations.length; 
-  const totalMonetary = donations
+  const totalDonationsCount = stats?.total_donations || donations.length; 
+  const totalMonetary = stats?.monetary_total || donations
     .filter((d: any) => d.category === 'Monetary')
     .reduce((sum, d) => sum + (d.quantity || 0), 0);
   
-  const totalInvReceived = inventory.reduce((acc: number, inv: any) => acc + inv.quantity, 0);
-  const totalInvDistributed = inventory.reduce((acc: number, inv: any) => acc + (inv.distributed || 0), 0);
-  const distRate = totalInvReceived > 0 ? Math.round((totalInvDistributed / totalInvReceived) * 100) : 0;
-
+  const distRate = stats?.distribution_rate ? Math.round(stats.distribution_rate) : 0;
   
-  const activeDonors = users.filter((u: any) => true).length; // Assume all active for now
+  const activeDonors = users.length; 
 
   const kpis = [
-    { label: 'Total Donations Recorded', value: totalDonationsThisMonth.toLocaleString('en-IN'), change: 'Live', up: true },
+    { label: 'Total Donations Recorded', value: totalDonationsCount.toLocaleString('en-IN'), change: 'Live', up: true },
     { label: 'Monetary Received', value: `₹${totalMonetary.toLocaleString('en-IN')}`, change: 'Live', up: true },
     { label: 'Distribution Rate', value: `${distRate}%`, change: 'Live', up: true },
     { label: 'Registered Donors', value: activeDonors.toLocaleString('en-IN'), change: 'Live', up: true },
